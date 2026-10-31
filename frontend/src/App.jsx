@@ -7,10 +7,12 @@ import { Profile } from './pages/Profile';
 import { Terms } from './pages/Terms';
 import { Privacy } from './pages/Privacy';
 import { NotFound } from './pages/NotFound';
+import { EditorPage } from './editor/ui/EditorPage';
 
 export default function App() {
   return (
     <Routes>
+      <Route path="/editor" element={<EditorPage />} />
       <Route path="/login" element={<Login />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/terms" element={<Terms />} />

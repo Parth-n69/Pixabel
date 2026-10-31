@@ -31,3 +31,4 @@ export function loadDocument(json) {
     ),
   });
 }
+

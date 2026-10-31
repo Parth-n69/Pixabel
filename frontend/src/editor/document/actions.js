@@ -150,3 +150,4 @@ function requireLayer(draft, layerId) {
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
+
