@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, startTransition } from 'react';
 import {
   loadImageIntoEditor,
   mergeLayersDown,
@@ -52,7 +52,11 @@ export function LayersPanel({ store, assetStore }) {
   );
 
   const select = useCallback(
-    (id) => store.getState().setSelectedLayerId(id),
+    (id) => {
+      startTransition(() => {
+        store.getState().setSelectedLayerId(id);
+      });
+    },
     [store],
   );
 

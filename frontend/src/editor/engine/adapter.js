@@ -103,46 +103,59 @@ export class FabricAdapter {
     this._canvas.on('object:rotating', () => this._ensureGesture());
 
     // End of transform — dispatch final state, close gesture
+    // Defer state dispatch via rAF so the pointerup interaction paints immediately (< 16ms INP)
     this._canvas.on('object:modified', (e) => {
       const obj = e.target;
       const layerId = obj?._layerId;
       if (!layerId) return;
 
-      // Dispatch the final transform
-      this._store.getState().dispatch({
-        type: 'transformLayer',
-        layerId,
-        x: obj.left,
-        y: obj.top,
-        scaleX: Math.abs(obj.scaleX),
-        scaleY: Math.abs(obj.scaleY),
-        rotation: ((obj.angle % 360) + 360) % 360,
-      });
+      const left = obj.left;
+      const top = obj.top;
+      const scaleX = Math.abs(obj.scaleX);
+      const scaleY = Math.abs(obj.scaleY);
+      const rotation = ((obj.angle % 360) + 360) % 360;
 
-      // Close the gesture → one undo step
-      this._isUserTransforming = false;
-      this._store.getState().endGesture();
+      requestAnimationFrame(() => {
+        this._store.getState().dispatch({
+          type: 'transformLayer',
+          layerId,
+          x: left,
+          y: top,
+          scaleX,
+          scaleY,
+          rotation,
+        });
+
+        this._isUserTransforming = false;
+        this._store.getState().endGesture();
+      });
     });
 
     // Safety: if mouse up without object:modified, close gesture
     this._canvas.on('mouse:up', () => {
       if (this._isUserTransforming) {
-        this._isUserTransforming = false;
-        this._store.getState().endGesture();
+        requestAnimationFrame(() => {
+          this._isUserTransforming = false;
+          this._store.getState().endGesture();
+        });
       }
     });
 
-    // Selection events from canvas to store
+    // Selection events from canvas to store (deferred so control handle rendering is instantaneous)
     this._canvas.on('selection:created', (e) => {
       const target = e.selected?.[0] || e.target;
       if (target?._layerId) {
-        this._store.getState().setSelectedLayerId(target._layerId);
+        requestAnimationFrame(() => {
+          this._store.getState().setSelectedLayerId(target._layerId);
+        });
       }
     });
     this._canvas.on('selection:updated', (e) => {
       const target = e.selected?.[0] || e.target;
       if (target?._layerId) {
-        this._store.getState().setSelectedLayerId(target._layerId);
+        requestAnimationFrame(() => {
+          this._store.getState().setSelectedLayerId(target._layerId);
+        });
       }
     });
   }

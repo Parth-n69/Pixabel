@@ -187,7 +187,7 @@ export function GalleryTab({
                     }
                   }}
                 >
-                  <img src={rec.image} alt={rec.prompt || 'Gallery image'} loading="lazy" />
+                  <img src={rec.image} alt={rec.prompt || 'Gallery image'} loading="lazy" decoding="async" />
                   {rec.type === 'edit' && <span className="gallery-card-badge">Edited</span>}
 
                   <div className="gallery-card-overlay">

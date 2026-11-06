@@ -122,11 +122,21 @@ export function EditTab({
     drawCanvas();
   }, [drawCanvas]);
 
-  // Handle window resize
+  // Handle window resize with rAF throttling
   useEffect(() => {
-    const handleResize = () => drawCanvas();
+    let rafId = null;
+    const handleResize = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        drawCanvas();
+        rafId = null;
+      });
+    };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', handleResize);
+    };
   }, [drawCanvas]);
 
   // File handling
