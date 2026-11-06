@@ -17,6 +17,9 @@ export function createEditorStore(initialDoc) {
   return create((set, get) => ({
     document: initialDoc ?? createDefaultDocument(),
 
+    // ── View state (not in history) ──
+    selectedLayerId: initialDoc?.layers?.[0]?.id ?? null,
+
     // ── History state (not part of the document) ──
     _undoStack: [],
     _redoStack: [],
@@ -29,6 +32,11 @@ export function createEditorStore(initialDoc) {
 
     /** Whether redo is available. */
     canRedo: () => get()._redoStack.length > 0,
+
+    /** Set the currently selected layer (view state, not in history). */
+    setSelectedLayerId(id) {
+      set({ selectedLayerId: id });
+    },
 
     /**
      * Dispatch an action to mutate the document.

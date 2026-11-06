@@ -44,6 +44,9 @@ export class FabricAdapter {
       if (state.document !== prevState.document && !this._isUserTransforming) {
         this._syncLayers(state.document);
       }
+      if (state.selectedLayerId !== prevState.selectedLayerId) {
+        this._syncSelection(state.selectedLayerId);
+      }
     });
   }
 
@@ -128,6 +131,20 @@ export class FabricAdapter {
         this._store.getState().endGesture();
       }
     });
+
+    // Selection events from canvas to store
+    this._canvas.on('selection:created', (e) => {
+      const target = e.selected?.[0] || e.target;
+      if (target?._layerId) {
+        this._store.getState().setSelectedLayerId(target._layerId);
+      }
+    });
+    this._canvas.on('selection:updated', (e) => {
+      const target = e.selected?.[0] || e.target;
+      if (target?._layerId) {
+        this._store.getState().setSelectedLayerId(target._layerId);
+      }
+    });
   }
 
   _ensureGesture() {
@@ -210,12 +227,34 @@ export class FabricAdapter {
       this._canvas.moveObjectTo(obj, i + 2);
     }
 
-    // Update artboard background if changed
+    // Update artboard size and background if changed
+    if (this._checkerRect) {
+      this._checkerRect.set({ width: doc.width, height: doc.height });
+    }
     if (this._bgRect) {
-      this._bgRect.set({ fill: doc.background || '#ffffff' });
+      this._bgRect.set({
+        width: doc.width,
+        height: doc.height,
+        fill: doc.background || '#ffffff',
+      });
     }
 
     this._canvas.requestRenderAll();
+  }
+
+  _syncSelection(selectedId) {
+    if (!selectedId) {
+      if (this._canvas.getActiveObject()) {
+        this._canvas.discardActiveObject();
+        this._canvas.requestRenderAll();
+      }
+      return;
+    }
+    const obj = this._objectMap.get(selectedId);
+    if (obj && obj.selectable && this._canvas.getActiveObject() !== obj) {
+      this._canvas.setActiveObject(obj);
+      this._canvas.requestRenderAll();
+    }
   }
 
   // ── Public helpers ────────────────────────────────────────

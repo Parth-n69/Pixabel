@@ -112,7 +112,7 @@ export function applyAction(draft, action) {
       const upper = draft.layers[idx];
       const lower = draft.layers[idx - 1];
       lower.name = `${lower.name} + ${upper.name}`;
-      lower.assetId = `merged-${createLayerId()}`;
+      lower.assetId = action.assetId || `merged-${createLayerId()}`;
       lower.opacity = 1;
       lower.blendMode = 'normal';
       draft.layers.splice(idx, 1);
@@ -123,10 +123,16 @@ export function applyAction(draft, action) {
       if (draft.layers.length === 0) break;
       const flat = createDefaultLayer({
         name: 'Flattened',
-        assetId: `flattened-${createLayerId()}`,
+        assetId: action.assetId || `flattened-${createLayerId()}`,
       });
       draft.layers.length = 0;
       draft.layers.push(flat);
+      break;
+    }
+
+    case 'setDocumentSize': {
+      if (action.width > 0) draft.width = action.width;
+      if (action.height > 0) draft.height = action.height;
       break;
     }
 

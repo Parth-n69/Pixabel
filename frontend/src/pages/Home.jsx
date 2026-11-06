@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Header } from '../components/Header';
 import { ModelPickerModal, MODEL_LABELS, buildModelLabels } from '../components/Modal';
 import { GenerationShimmer } from '../components/Skeleton';
@@ -61,6 +61,7 @@ const MAX_PROMPT_LENGTH = 1000;
 
 export function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const activeTab = searchParams.get('tab') || 'generate';
   const {
     generations,
@@ -327,9 +328,9 @@ export function Home() {
     }, 50);
   };
 
-  // Switch to Edit tab with selected record
+  // Open editor with selected record as layer 1
   const handleEditImage = (record) => {
-    setSearchParams({ tab: 'edit', img: record.id || '' });
+    navigate(`/editor?img=${record.id || ''}`);
   };
 
   // Determine if currently selected model is Cloudflare
@@ -815,7 +816,7 @@ export function Home() {
                                   type="button"
                                   className="msg-action-btn"
                                   onClick={() => {
-                                    setSearchParams({ tab: 'edit', img: msg.recordId || '' });
+                                    navigate(`/editor?img=${msg.recordId || ''}`);
                                   }}
                                 >
                                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">

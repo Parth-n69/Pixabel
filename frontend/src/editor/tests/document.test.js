@@ -479,6 +479,43 @@ describe('Pixabel Document Store', () => {
     });
   });
 
+  // ── setDocumentSize ───────────────────────────────────────────────
+
+  describe('setDocumentSize', () => {
+    it('updates document width and height', () => {
+      dispatch({ type: 'setDocumentSize', width: 1024, height: 1536 });
+      expect(getDoc().width).toBe(1024);
+      expect(getDoc().height).toBe(1536);
+    });
+
+    it('undo / redo document size changes', () => {
+      const origW = getDoc().width;
+      const origH = getDoc().height;
+      dispatch({ type: 'setDocumentSize', width: 800, height: 600 });
+      expect(getDoc().width).toBe(800);
+      expect(getDoc().height).toBe(600);
+      undo();
+      expect(getDoc().width).toBe(origW);
+      expect(getDoc().height).toBe(origH);
+      redo();
+      expect(getDoc().width).toBe(800);
+      expect(getDoc().height).toBe(600);
+    });
+  });
+
+  // ── selectedLayerId view state ────────────────────────────────────
+
+  describe('selectedLayerId view state', () => {
+    it('sets selected layer without recording to undo history', () => {
+      const id = addLayer('A');
+      const stackLen = store.getState()._undoStack.length;
+      store.getState().setSelectedLayerId(id);
+      expect(store.getState().selectedLayerId).toBe(id);
+      // View state changes must NOT create undo steps
+      expect(store.getState()._undoStack.length).toBe(stackLen);
+    });
+  });
+
   // ── Gesture coalescing ──────────────────────────────────────────────
 
   describe('gesture coalescing', () => {
