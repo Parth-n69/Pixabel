@@ -46,6 +46,7 @@ export function EditorPage() {
               id: `editor-doc-${imgId}`,
               width: w,
               height: h,
+              background: 'transparent',
               layers: [],
             });
             const store = createEditorStore(initialDoc);
@@ -70,6 +71,7 @@ export function EditorPage() {
         id: 'editor-doc',
         width: 1024,
         height: 1024,
+        background: 'transparent',
         layers: [],
       });
 

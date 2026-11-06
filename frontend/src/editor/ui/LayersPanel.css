@@ -189,19 +189,18 @@
 
 /* ── Action buttons row ──────────────────────────────────── */
 .layers-panel__actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
   gap: 4px;
   padding: 8px;
   border-top: 1px solid var(--border);
-  flex-wrap: wrap;
 }
 
 .layers-panel__actions .editor-btn {
-  flex: 1 1 auto;
   min-width: 0;
   font-size: 11px;
   height: 30px;
-  padding: 0 6px;
+  padding: 0 2px;
   justify-content: center;
 }
 

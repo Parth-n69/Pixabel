@@ -57,34 +57,41 @@ export class FabricAdapter {
   // ── Artboard (checkerboard + doc background) ──────────────
 
   _initArtboard(doc) {
-    // Build a tiny checkerboard tile
+    // Build a subtle dark luxury checkerboard tile for transparency
     const tile = document.createElement('canvas');
-    tile.width = 20;
-    tile.height = 20;
+    tile.width = 24;
+    tile.height = 24;
     const ctx = tile.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 20, 20);
-    ctx.fillStyle = '#e0e0e0';
-    ctx.fillRect(0, 0, 10, 10);
-    ctx.fillRect(10, 10, 10, 10);
+    ctx.fillStyle = '#26262c';
+    ctx.fillRect(0, 0, 24, 24);
+    ctx.fillStyle = '#1e1e23';
+    ctx.fillRect(0, 0, 12, 12);
+    ctx.fillRect(12, 12, 12, 12);
 
     this._checkerRect = new Rect({
+      originX: 'left',
+      originY: 'top',
       left: 0,
       top: 0,
       width: doc.width,
       height: doc.height,
       fill: new Pattern({ source: tile, repeat: 'repeat' }),
+      stroke: 'rgba(212, 175, 55, 0.35)',
+      strokeWidth: 1,
       selectable: false,
       evented: false,
       hoverCursor: 'default',
     });
 
+    const isTransparent = !doc.background || doc.background === 'transparent';
     this._bgRect = new Rect({
+      originX: 'left',
+      originY: 'top',
       left: 0,
       top: 0,
       width: doc.width,
       height: doc.height,
-      fill: doc.background || '#ffffff',
+      fill: isTransparent ? 'transparent' : doc.background,
       selectable: false,
       evented: false,
       hoverCursor: 'default',
@@ -222,6 +229,8 @@ export class FabricAdapter {
       if (!obj) continue;
 
       obj.set({
+        originX: 'left',
+        originY: 'top',
         left: layer.x,
         top: layer.y,
         scaleX: layer.scaleX,
@@ -250,10 +259,11 @@ export class FabricAdapter {
       this._checkerRect.set({ width: doc.width, height: doc.height });
     }
     if (this._bgRect) {
+      const isTransparent = !doc.background || doc.background === 'transparent';
       this._bgRect.set({
         width: doc.width,
         height: doc.height,
-        fill: doc.background || '#ffffff',
+        fill: isTransparent ? 'transparent' : doc.background,
       });
     }
 
