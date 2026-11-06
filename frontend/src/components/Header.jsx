@@ -5,6 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import { Logo } from './Logo';
 import { Tabs } from './Tabs';
 import './Header.css';
+import './Button.css';
 
 export function Header({
   activeTab = 'generate',
