@@ -22,11 +22,15 @@ export function EditorToolbar({ store, assetStore, viewportRef }) {
 
   useEffect(() => {
     const update = (state) => {
-      setCanUndo(state._undoStack.length > 0);
-      setCanRedo(state._redoStack.length > 0);
-      setDocSize({
-        width: state.document.width,
-        height: state.document.height,
+      const nextCanUndo = state._undoStack.length > 0;
+      const nextCanRedo = state._redoStack.length > 0;
+      setCanUndo((prev) => (prev === nextCanUndo ? prev : nextCanUndo));
+      setCanRedo((prev) => (prev === nextCanRedo ? prev : nextCanRedo));
+      setDocSize((prev) => {
+        if (prev.width === state.document.width && prev.height === state.document.height) {
+          return prev;
+        }
+        return { width: state.document.width, height: state.document.height };
       });
     };
     update(store.getState());

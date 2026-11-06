@@ -18,11 +18,29 @@ export function LayersPanel({ store, assetStore }) {
   const [dragOverIdx, setDragOverIdx] = useState(null);
   const renameRef = useRef(null);
 
-  // Subscribe to store
+  // Subscribe to store (selective update so canvas transforms don't re-render layer list)
   useEffect(() => {
     const update = (state) => {
-      setLayers([...state.document.layers].reverse());
-      setSelectedId(state.selectedLayerId);
+      setLayers((prev) => {
+        const next = state.document.layers;
+        if (
+          prev.length === next.length &&
+          prev.every((l, i) => {
+            const nl = next[next.length - 1 - i];
+            return (
+              l.id === nl.id &&
+              l.name === nl.name &&
+              l.visible === nl.visible &&
+              l.locked === nl.locked &&
+              l.assetId === nl.assetId
+            );
+          })
+        ) {
+          return prev;
+        }
+        return [...next].reverse();
+      });
+      setSelectedId((prev) => (prev === state.selectedLayerId ? prev : state.selectedLayerId));
     };
     update(store.getState());
     return store.subscribe(update);
@@ -208,6 +226,8 @@ export function LayersPanel({ store, assetStore }) {
                       src={getThumbnailUrl(layer)}
                       alt=""
                       draggable={false}
+                      loading="lazy"
+                      decoding="async"
                     />
                   ) : (
                     <div className="layers-panel__thumb-empty" />

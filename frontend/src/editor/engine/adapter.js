@@ -26,12 +26,12 @@ export class FabricAdapter {
     this._canvas = new Canvas(canvasEl, {
       preserveObjectStacking: true,
       selection: false,
-      backgroundColor: 'var(--surface, #111113)',
+      backgroundColor: '#1a1a1e',
       controlsAboveOverlay: true,
+      renderOnAddRemove: false,
+      enableRetinaScaling: true,
+      imageSmoothingEnabled: true,
     });
-
-    // Dark canvas background (editor pasteboard)
-    this._canvas.backgroundColor = '#1a1a1e';
 
     this._initArtboard(store.getState().document);
     this._setupEvents();
@@ -173,6 +173,7 @@ export class FabricAdapter {
     try {
       const img = await FabricImage.fromURL(url);
       img._layerId = layer.id;
+      img.set({ objectCaching: false });
       this._objectMap.set(layer.id, img);
       this._canvas.add(img);
     } finally {
@@ -224,7 +225,11 @@ export class FabricAdapter {
       });
 
       // Z-order: checkerRect(0), bgRect(1), then layers
-      this._canvas.moveObjectTo(obj, i + 2);
+      const targetIndex = i + 2;
+      const objs = this._canvas.getObjects();
+      if (objs[targetIndex] !== obj) {
+        this._canvas.moveObjectTo(obj, targetIndex);
+      }
     }
 
     // Update artboard size and background if changed

@@ -26,13 +26,15 @@ export function EditorCanvas({ store, assetStore, viewportRef, onZoomChange }) {
     height: store.getState().document.height,
   });
 
-  // Track layer count and document size
+  // Track layer count and document size (skip state updates if unchanged to prevent re-renders)
   useEffect(() => {
     const unsub = store.subscribe((state) => {
-      setLayerCount(state.document.layers.length);
-      setDocDimensions({
-        width: state.document.width,
-        height: state.document.height,
+      setLayerCount((prev) => (prev === state.document.layers.length ? prev : state.document.layers.length));
+      setDocDimensions((prev) => {
+        if (prev.width === state.document.width && prev.height === state.document.height) {
+          return prev;
+        }
+        return { width: state.document.width, height: state.document.height };
       });
     });
     return unsub;

@@ -160,6 +160,7 @@
   overflow: hidden;
   background: #151518;
   outline: none;
+  contain: layout size;
 }
 
 .editor-canvas-wrap--dragover {
@@ -187,6 +188,13 @@
   font-weight: 600;
   font-size: 16px;
   letter-spacing: 0.03em;
+}
+
+/* Fabric creates its own wrapper; ensure it fills the container and uses hardware compositing */
+.editor-canvas-wrap .canvas-container {
+  width: 100% !important;
+  height: 100% !important;
+  transform: translateZ(0);
 }
 
 /* ── Empty state on Canvas ───────────────────────────────── */
