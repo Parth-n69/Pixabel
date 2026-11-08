@@ -7,10 +7,12 @@ import { loadImageUrlIntoEditor } from '../engine/imageLoader.js';
 import { Storage } from '../../lib/storage.js';
 import { EditorCanvas } from './EditorCanvas.jsx';
 import { EditorToolbar } from './EditorToolbar.jsx';
+import { PropertiesPanel } from './PropertiesPanel.jsx';
 import { LayersPanel } from './LayersPanel.jsx';
 import { ZoomBar } from './ZoomBar.jsx';
 import './editor.css';
 import './LayersPanel.css';
+import './PropertiesPanel.css';
 
 /**
  * EditorPage — top-level editor route.
@@ -109,10 +111,13 @@ export function EditorPage() {
           onZoomChange={handleZoomChange}
         />
 
-        <LayersPanel
-          store={storeRef.current}
-          assetStore={assetStoreRef.current}
-        />
+        <div className="editor-sidebar">
+          <PropertiesPanel store={storeRef.current} />
+          <LayersPanel
+            store={storeRef.current}
+            assetStore={assetStoreRef.current}
+          />
+        </div>
       </div>
 
       <ZoomBar

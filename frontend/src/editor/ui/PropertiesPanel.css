@@ -1,0 +1,188 @@
+/* ============================================================
+   PIXABEL EDITOR — PROPERTIES PANEL
+   ============================================================ */
+
+.props-panel {
+  display: flex;
+  flex-direction: column;
+  width: 260px;
+  min-width: 200px;
+  max-width: 320px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex-shrink: 0;
+}
+
+.props-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.props-panel__title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.props-panel__lock-badge {
+  font-size: 11px;
+  color: var(--gold-soft);
+  opacity: 0.8;
+}
+
+.props-panel__empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 13px;
+  min-height: 80px;
+}
+
+/* ── Sections ────────────────────────────────────────────── */
+
+.props-panel__section {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.props-panel__section--subtle {
+  border-bottom: none;
+  padding: 8px 14px;
+}
+
+.props-panel__label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.props-panel__value {
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+/* ── Opacity row ─────────────────────────────────────────── */
+
+.props-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.props-panel__slider {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border-strong);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  transition: opacity var(--t-fast);
+}
+
+.props-panel__slider:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.props-panel__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border-strong);
+  cursor: pointer;
+  transition: transform var(--t-fast), box-shadow var(--t-fast);
+}
+
+.props-panel__slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 6px var(--gold);
+}
+
+.props-panel__slider:disabled::-webkit-slider-thumb {
+  background: var(--text-muted);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.props-panel__slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border-strong);
+  cursor: pointer;
+}
+
+.props-panel__slider:disabled::-moz-range-thumb {
+  background: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.props-panel__pct {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  min-width: 36px;
+  text-align: right;
+}
+
+/* ── Select ──────────────────────────────────────────────── */
+
+.props-panel__select {
+  width: 100%;
+  text-transform: capitalize;
+}
+
+/* ── Transform button row ────────────────────────────────── */
+
+.props-panel__btn-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.props-panel__btn-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .props-panel {
+    width: 100%;
+    max-width: none;
+    max-height: 180px;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}
