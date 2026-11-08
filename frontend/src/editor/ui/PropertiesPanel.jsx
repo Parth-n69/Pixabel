@@ -274,3 +274,4 @@ export function PropertiesPanel({ store }) {
     </div>
   );
 }
+
