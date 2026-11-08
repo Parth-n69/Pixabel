@@ -72,6 +72,17 @@
   box-sizing: border-box;
 }
 
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
 html, body, #root {
   height: 100%;
   width: 100%;

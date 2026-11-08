@@ -14,6 +14,7 @@ const PRESETS = [
 export function EditorToolbar({ store, assetStore, viewportRef }) {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+  const [isComparingSession, setIsComparingSession] = useState(false);
   const [docSize, setDocSize] = useState({
     width: store.getState().document.width,
     height: store.getState().document.height,
@@ -26,6 +27,7 @@ export function EditorToolbar({ store, assetStore, viewportRef }) {
       const nextCanRedo = state._redoStack.length > 0;
       setCanUndo((prev) => (prev === nextCanUndo ? prev : nextCanUndo));
       setCanRedo((prev) => (prev === nextCanRedo ? prev : nextCanRedo));
+      setIsComparingSession((prev) => (prev === state.isComparingSession ? prev : state.isComparingSession));
       setDocSize((prev) => {
         if (prev.width === state.document.width && prev.height === state.document.height) {
           return prev;
@@ -107,6 +109,23 @@ export function EditorToolbar({ store, assetStore, viewportRef }) {
           title="Redo (Ctrl+Shift+Z)"
         >
           ↪ Redo
+        </button>
+        <button
+          type="button"
+          className={`editor-btn ${isComparingSession ? 'editor-btn--active' : ''}`}
+          onPointerDown={() => store.getState().setIsComparingSession(true)}
+          onPointerUp={() => store.getState().setIsComparingSession(false)}
+          onPointerLeave={() => store.getState().setIsComparingSession(false)}
+          onTouchStart={() => store.getState().setIsComparingSession(true)}
+          onTouchEnd={() => store.getState().setIsComparingSession(false)}
+          aria-label="Hold to compare against session start"
+          title="Hold to preview document when editing session started"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          <span>{isComparingSession ? 'Viewing Original…' : 'Hold to Compare'}</span>
         </button>
       </div>
 

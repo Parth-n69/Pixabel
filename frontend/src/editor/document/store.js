@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { enablePatches, produceWithPatches, applyPatches } from 'immer';
 import { applyAction } from './actions.js';
 import { createDefaultDocument } from './schema.js';
+import { serializeDocument } from './serialize.js';
 
 enablePatches();
 
@@ -14,16 +15,30 @@ const MAX_HISTORY = 100;
  * Each call returns an independent store (useful for testing).
  */
 export function createEditorStore(initialDoc) {
+  const initDoc = initialDoc ?? createDefaultDocument();
+
   return create((set, get) => ({
-    document: initialDoc ?? createDefaultDocument(),
+    document: initDoc,
+    initialSessionDoc: serializeDocument(initDoc),
 
     // ── View state (not in history) ──
-    selectedLayerId: initialDoc?.layers?.[0]?.id ?? null,
+    selectedLayerId: initDoc?.layers?.[0]?.id ?? null,
     comparingLayerId: null,
+    isComparingSession: false,
 
     /** Set the layer currently being compared (preview original without adjustments). */
     setComparingLayerId(id) {
       set({ comparingLayerId: id });
+    },
+
+    /** Toggle or set comparing full document to session start. */
+    setIsComparingSession(val) {
+      set({ isComparingSession: Boolean(val) });
+    },
+
+    /** Snapshot the current document as the session start baseline. */
+    snapshotInitialSessionDoc() {
+      set({ initialSessionDoc: serializeDocument(get().document) });
     },
 
     // ── History state (not part of the document) ──

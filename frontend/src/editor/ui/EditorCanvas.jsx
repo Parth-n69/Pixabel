@@ -18,6 +18,7 @@ export function EditorCanvas({ store, assetStore, viewportRef, onZoomChange }) {
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isComparingSession, setIsComparingSession] = useState(false);
   const [layerCount, setLayerCount] = useState(
     store.getState().document.layers.length
   );
@@ -30,6 +31,7 @@ export function EditorCanvas({ store, assetStore, viewportRef, onZoomChange }) {
   useEffect(() => {
     const unsub = store.subscribe((state) => {
       setLayerCount((prev) => (prev === state.document.layers.length ? prev : state.document.layers.length));
+      setIsComparingSession((prev) => (prev === state.isComparingSession ? prev : state.isComparingSession));
       setDocDimensions((prev) => {
         if (prev.width === state.document.width && prev.height === state.document.height) {
           return prev;
@@ -222,6 +224,18 @@ export function EditorCanvas({ store, assetStore, viewportRef, onZoomChange }) {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {isComparingSession && (
+        <div className="editor-compare-banner" role="status" aria-live="polite">
+          <span className="editor-compare-pill">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="12" height="12">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            Session Start Baseline (Holding)
+          </span>
         </div>
       )}
     </div>

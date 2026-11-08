@@ -719,4 +719,70 @@ describe('Pixabel Document Store', () => {
       expect(store.getState().canRedo()).toBe(false);
     });
   });
+
+  // ── Part 6: AI edit and compare ─────────────────────────────────────
+
+  describe('Part 6: AI edit and compare', () => {
+    it('adds AI edit layer directly above the selected layer without touching original', () => {
+      const origId = addLayer('Original Photo');
+      dispatch({
+        type: 'setAdjustments',
+        layerId: origId,
+        adjustments: { brightness: 15, contrast: 10 },
+      });
+
+      const currentLayers = getDoc().layers;
+      const selectedIdx = currentLayers.findIndex((l) => l.id === origId);
+
+      // Simulate applying AI edit
+      dispatch({
+        type: 'addLayer',
+        payload: {
+          name: 'AI edit',
+          assetId: 'ai-asset-123',
+        },
+        index: selectedIdx + 1,
+      });
+
+      expect(getDoc().layers).toHaveLength(2);
+      expect(getDoc().layers[0].name).toBe('Original Photo');
+      expect(getDoc().layers[0].adjustments.brightness).toBe(15);
+      expect(getDoc().layers[1].name).toBe('AI edit');
+      expect(getDoc().layers[1].assetId).toBe('ai-asset-123');
+
+      // Undo removes the AI edit layer in one step
+      undo();
+      expect(getDoc().layers).toHaveLength(1);
+      expect(getDoc().layers[0].name).toBe('Original Photo');
+      expect(getDoc().layers[0].adjustments.brightness).toBe(15);
+
+      // Redo restores it
+      redo();
+      expect(getDoc().layers).toHaveLength(2);
+      expect(getDoc().layers[1].name).toBe('AI edit');
+    });
+
+    it('snapshots initial session document and toggles session comparison view state', () => {
+      addLayer('Layer 1');
+      store.getState().snapshotInitialSessionDoc();
+
+      const initialSession = store.getState().initialSessionDoc;
+      expect(initialSession.layers).toHaveLength(1);
+      expect(initialSession.layers[0].name).toBe('Layer 1');
+
+      // Make live changes (session continues)
+      addLayer('AI edit');
+      expect(getDoc().layers).toHaveLength(2);
+
+      // Compare to session start
+      expect(store.getState().isComparingSession).toBe(false);
+      store.getState().setIsComparingSession(true);
+      expect(store.getState().isComparingSession).toBe(true);
+
+      // Comparing view state does not pollute undo/redo history
+      expect(store.getState().canUndo()).toBe(true);
+      store.getState().setIsComparingSession(false);
+      expect(store.getState().isComparingSession).toBe(false);
+    });
+  });
 });

@@ -41,6 +41,24 @@ export class FabricAdapter {
 
     // Subscribe to store changes
     this._unsubscribe = store.subscribe((state, prevState) => {
+      // Session comparison takes precedence over live document
+      if (state.isComparingSession !== prevState.isComparingSession) {
+        if (state.isComparingSession) {
+          if (this._canvas.getActiveObject()) {
+            this._canvas.discardActiveObject();
+          }
+          this._syncLayers(state.initialSessionDoc || state.document, null);
+        } else {
+          this._syncLayers(state.document, state.comparingLayerId);
+          this._syncSelection(state.selectedLayerId);
+        }
+        return;
+      }
+
+      if (state.isComparingSession) {
+        return;
+      }
+
       if (
         (state.document !== prevState.document || state.comparingLayerId !== prevState.comparingLayerId) &&
         !this._isUserTransforming
@@ -196,7 +214,12 @@ export class FabricAdapter {
     try {
       const img = await FabricImage.fromURL(url);
       img._layerId = layer.id;
-      img.set({ objectCaching: false });
+      img.set({
+        originX: 'left',
+        originY: 'top',
+        objectCaching: false,
+      });
+      img.setCoords();
       this._objectMap.set(layer.id, img);
       this._canvas.add(img);
     } finally {
@@ -207,13 +230,19 @@ export class FabricAdapter {
   // ── Sync document → Fabric ────────────────────────────────
 
   _syncLayers(doc, comparingLayerId = null) {
-    const docIds = new Set(doc.layers.map((l) => l.id));
+    const liveDoc = this._store.getState().document;
+    const liveIds = new Set(liveDoc.layers.map((l) => l.id));
+    const activeDocIds = new Set(doc.layers.map((l) => l.id));
 
-    // Remove fabric objects whose layers were deleted
+    // Remove fabric objects whose layers were deleted from the document
     for (const [id, obj] of this._objectMap) {
-      if (!docIds.has(id)) {
+      if (!liveIds.has(id)) {
         this._canvas.remove(obj);
         this._objectMap.delete(id);
+      } else if (!activeDocIds.has(id)) {
+        // Hide object if it is temporarily omitted from the active view (e.g. session comparison baseline)
+        obj.set({ visible: false, selectable: false, evented: false });
+        obj.setCoords();
       }
     }
 
@@ -248,6 +277,7 @@ export class FabricAdapter {
         globalCompositeOperation:
           layer.blendMode === 'normal' ? 'source-over' : layer.blendMode,
       });
+      obj.setCoords();
 
       // Sync adjustments to Fabric filters (bypass if currently being compared to original)
       const isComparing = comparingLayerId === layer.id;
@@ -294,6 +324,7 @@ export class FabricAdapter {
     // Update artboard size and background if changed
     if (this._checkerRect) {
       this._checkerRect.set({ width: doc.width, height: doc.height });
+      this._checkerRect.setCoords();
     }
     if (this._bgRect) {
       const isTransparent = !doc.background || doc.background === 'transparent';
@@ -302,6 +333,7 @@ export class FabricAdapter {
         height: doc.height,
         fill: isTransparent ? 'transparent' : doc.background,
       });
+      this._bgRect.setCoords();
     }
 
     this._canvas.requestRenderAll();

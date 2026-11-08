@@ -194,3 +194,43 @@ function drawLayerToCtx(ctx, layer, assetStore) {
     img.src = url;
   });
 }
+
+/**
+ * Export a layer's image as a base64 Data URL for AI edit.
+ * If adjustments are present, applies them to an offscreen canvas.
+ */
+export async function getLayerDataUrl(layer, assetStore) {
+  if (!layer || !layer.assetId) throw new Error('No layer asset');
+  const url = assetStore.getUrl(layer.assetId);
+  if (!url) throw new Error('Layer asset not found');
+
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const ctx = canvas.getContext('2d');
+
+      if (layer.adjustments) {
+        const adj = layer.adjustments;
+        const b = 100 + (adj.brightness || 0);
+        const c = 100 + (adj.contrast || 0);
+        const s = 100 + (adj.saturation || 0);
+        const blur = Math.max(0, (adj.blur || 0) * 0.2);
+        const filters = [`brightness(${b}%)`, `contrast(${c}%)`, `saturate(${s}%)`];
+        if (blur > 0) filters.push(`blur(${blur}px)`);
+        if (adj.grayscale) filters.push('grayscale(100%)');
+        if (adj.sepia) filters.push('sepia(100%)');
+        if (adj.invert) filters.push('invert(100%)');
+        ctx.filter = filters.join(' ');
+      }
+
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => reject(new Error('Failed to load layer image'));
+    img.src = url;
+  });
+}

@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { DEFAULT_ADJUSTMENTS } from '../document/schema.js';
+import { DEFAULT_ADJUSTMENTS, createLayerId } from '../document/schema.js';
+import { editImage } from '../../lib/api.js';
+import { getLayerDataUrl } from '../engine/imageLoader.js';
 
 const BLEND_MODES = [
   'normal',
@@ -15,23 +17,48 @@ const BLEND_MODES = [
   'difference',
 ];
 
+const AI_EDIT_PRESETS = [
+  'Oil painting style',
+  'Watercolor wash',
+  'Cyberpunk neon',
+  'Studio Ghibli anime',
+  'Pencil sketch',
+  'Vintage film photo',
+  'Anime style',
+  'Make it nighttime',
+  'Golden hour glow',
+];
+
 /**
- * PropertiesPanel — shows opacity, blend mode, transforms, and adjustments
- * (brightness, contrast, saturation, blur, grayscale, sepia, invert)
- * for the currently selected layer.
+ * PropertiesPanel — shows opacity, blend mode, transforms, adjustments,
+ * and AI Edit (SDXL Lightning img2img) for the currently selected layer.
  */
-export function PropertiesPanel({ store }) {
+export function PropertiesPanel({ store, assetStore }) {
   const [layer, setLayer] = useState(null);
   const [locked, setLocked] = useState(false);
   const [isComparing, setIsComparing] = useState(false);
+  const [isComparingSession, setIsComparingSession] = useState(false);
 
+  // AI Edit state
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiStrength, setAiStrength] = useState(75);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
+
+  // Gesture coalescing & INP-optimized throttling refs & states
   const gestureActiveRef = useRef(false);
   const rafIdRef = useRef(null);
+  const rafOpacityIdRef = useRef(null);
   const pendingAdjustmentRef = useRef(null);
+  const pendingOpacityRef = useRef(null);
+  const [draggingOpacity, setDraggingOpacity] = useState(null);
+  const [draggingAdjustments, setDraggingAdjustments] = useState({});
 
   // Subscribe to store: extract selected layer's relevant properties
   useEffect(() => {
     const update = (state) => {
+      setIsComparingSession((prev) => (prev === state.isComparingSession ? prev : state.isComparingSession));
+
       const selId = state.selectedLayerId;
       if (!selId) {
         setLayer(null);
@@ -74,6 +101,11 @@ export function PropertiesPanel({ store }) {
         return {
           id: l.id,
           name: l.name,
+          assetId: l.assetId,
+          x: l.x,
+          y: l.y,
+          scaleX: l.scaleX,
+          scaleY: l.scaleY,
           opacity: l.opacity,
           blendMode: l.blendMode,
           rotation: l.rotation,
@@ -107,6 +139,18 @@ export function PropertiesPanel({ store }) {
       cancelAnimationFrame(rafIdRef.current);
       rafIdRef.current = null;
     }
+    if (rafOpacityIdRef.current) {
+      cancelAnimationFrame(rafOpacityIdRef.current);
+      rafOpacityIdRef.current = null;
+    }
+    if (pendingOpacityRef.current !== null && layer) {
+      dispatch({
+        type: 'setOpacity',
+        layerId: layer.id,
+        opacity: pendingOpacityRef.current,
+      });
+      pendingOpacityRef.current = null;
+    }
     if (pendingAdjustmentRef.current && layer) {
       dispatch({
         type: 'setAdjustments',
@@ -115,6 +159,8 @@ export function PropertiesPanel({ store }) {
       });
       pendingAdjustmentRef.current = null;
     }
+    setDraggingOpacity(null);
+    setDraggingAdjustments({});
     if (gestureActiveRef.current) {
       gestureActiveRef.current = false;
       store.getState().endGesture();
@@ -127,12 +173,27 @@ export function PropertiesPanel({ store }) {
     return () => window.removeEventListener('pointerup', handleSliderPointerUp);
   }, [handleSliderPointerUp]);
 
-  // ── Opacity ─────────────────────────────────────────────
+  // ── Opacity (Throttled with rAF for <16ms INP) ───────────
 
   const handleOpacityChange = (e) => {
     if (!layer || locked) return;
     const val = parseFloat(e.target.value) / 100;
-    dispatch({ type: 'setOpacity', layerId: layer.id, opacity: val });
+    setDraggingOpacity(Math.round(val * 100));
+    pendingOpacityRef.current = val;
+
+    if (!rafOpacityIdRef.current) {
+      rafOpacityIdRef.current = requestAnimationFrame(() => {
+        if (pendingOpacityRef.current !== null && layer) {
+          dispatch({
+            type: 'setOpacity',
+            layerId: layer.id,
+            opacity: pendingOpacityRef.current,
+          });
+          pendingOpacityRef.current = null;
+        }
+        rafOpacityIdRef.current = null;
+      });
+    }
   };
 
   // ── Adjustments Slider Changes (Throttled with rAF) ──────
@@ -140,6 +201,7 @@ export function PropertiesPanel({ store }) {
   const handleAdjustmentChange = (key, rawVal) => {
     if (!layer || locked) return;
     const val = Number(rawVal);
+    setDraggingAdjustments((prev) => ({ ...prev, [key]: val }));
     pendingAdjustmentRef.current = {
       ...(pendingAdjustmentRef.current || {}),
       [key]: val,
@@ -183,7 +245,7 @@ export function PropertiesPanel({ store }) {
     dispatch({ type: 'resetAllAdjustments' });
   };
 
-  // ── Compare (Hold) ──────────────────────────────────────
+  // ── Compare Layer Filters (Hold) ────────────────────────
 
   const startComparing = () => {
     if (!layer) return;
@@ -194,6 +256,75 @@ export function PropertiesPanel({ store }) {
   const stopComparing = () => {
     setIsComparing(false);
     store.getState().setComparingLayerId(null);
+  };
+
+  // ── AI Edit (SDXL Lightning img2img) ────────────────────
+
+  const handleApplyAiEdit = async () => {
+    const prompt = aiPrompt.trim();
+    if (!prompt || !layer || !assetStore || isAiLoading || locked) return;
+
+    setIsAiLoading(true);
+    setAiError(null);
+
+    try {
+      // 1. Export the selected layer's image with adjustments to base64
+      const dataUrl = await getLayerDataUrl(layer, assetStore);
+
+      // 2. Call backend Flask /edit endpoint
+      const res = await editImage({
+        image: dataUrl,
+        prompt,
+        strength: aiStrength / 100,
+      });
+
+      // 3. Register resulting blob into assetStore
+      const resBlob = await (await fetch(res.image)).blob();
+      const newAssetId = `img-${createLayerId()}`;
+      assetStore.add(newAssetId, resBlob);
+
+      // 4. Insert result as a NEW layer right above the selected layer named "AI edit"
+      const currentDoc = store.getState().document;
+      const currentIdx = currentDoc.layers.findIndex((l) => l.id === layer.id);
+      const insertIdx = currentIdx >= 0 ? currentIdx + 1 : currentDoc.layers.length;
+
+      dispatch({
+        type: 'addLayer',
+        payload: {
+          name: 'AI edit',
+          assetId: newAssetId,
+          x: layer.x,
+          y: layer.y,
+          scaleX: layer.scaleX,
+          scaleY: layer.scaleY,
+          rotation: layer.rotation,
+          flipX: layer.flipX,
+          flipY: layer.flipY,
+          opacity: 1,
+          blendMode: 'normal',
+        },
+        index: insertIdx,
+      });
+
+      // 5. Select the newly created AI edit layer
+      const updatedDoc = store.getState().document;
+      const createdLayer = updatedDoc.layers[insertIdx];
+      if (createdLayer) {
+        store.getState().setSelectedLayerId(createdLayer.id);
+      }
+    } catch (err) {
+      if (err.code === 'CF_RATE_LIMIT') {
+        setAiError(err.message || 'Rate limit reached for Cloudflare. Please wait 10 seconds.');
+      } else if (err.code === 'LIMIT_REACHED') {
+        setAiError(err.message || 'Your daily limit of generations is used up. Try again tomorrow.');
+      } else if (err.code === 'CF_AUTH') {
+        setAiError(err.message || 'Cloudflare credentials are not configured. AI edit is unavailable.');
+      } else {
+        setAiError(err.message || 'AI edit failed. Please check your connection and try again.');
+      }
+    } finally {
+      setIsAiLoading(false);
+    }
   };
 
   // ── Blend mode ──────────────────────────────────────────
@@ -234,12 +365,32 @@ export function PropertiesPanel({ store }) {
           <span className="props-panel__title">Properties</span>
         </div>
         <div className="props-panel__empty">No layer selected</div>
+
+        {/* Global session compare button even if no layer is currently selected */}
+        <div className="props-panel__section" style={{ borderTop: '1px solid var(--border)' }}>
+          <button
+            type="button"
+            className={`editor-btn props-panel__compare-btn${isComparingSession ? ' editor-btn--active' : ''}`}
+            title="Hold to preview document as it was when the editing session started"
+            onPointerDown={() => store.getState().setIsComparingSession(true)}
+            onPointerUp={() => store.getState().setIsComparingSession(false)}
+            onPointerLeave={() => store.getState().setIsComparingSession(false)}
+            onTouchStart={() => store.getState().setIsComparingSession(true)}
+            onTouchEnd={() => store.getState().setIsComparingSession(false)}
+          >
+            {isComparingSession ? '👁 Viewing Session Baseline…' : '👁 Hold to Compare (Session Start)'}
+          </button>
+        </div>
       </div>
     );
   }
 
-  const opacityPct = Math.round(layer.opacity * 100);
-  const adj = layer.adjustments || DEFAULT_ADJUSTMENTS;
+  const opacityPct =
+    draggingOpacity !== null ? draggingOpacity : Math.round(layer.opacity * 100);
+  const adj = {
+    ...(layer.adjustments || DEFAULT_ADJUSTMENTS),
+    ...draggingAdjustments,
+  };
   const isDisabled = locked;
 
   const formatPct = (val) => (val > 0 ? `+${val}%` : `${val}%`);
@@ -516,12 +667,12 @@ export function PropertiesPanel({ store }) {
           </button>
         </div>
 
-        {/* Compare (Hold) Button */}
+        {/* Compare Layer Adjustments (Hold) */}
         <div style={{ marginTop: '10px' }}>
           <button
             type="button"
             className={`editor-btn props-panel__compare-btn${isComparing ? ' editor-btn--active' : ''}`}
-            title="Hold to preview original image without adjustments"
+            title="Hold to preview layer without adjustments"
             disabled={isDisabled}
             onPointerDown={startComparing}
             onPointerUp={stopComparing}
@@ -529,9 +680,130 @@ export function PropertiesPanel({ store }) {
             onTouchStart={startComparing}
             onTouchEnd={stopComparing}
           >
-            {isComparing ? '👁 Viewing Original…' : '👁 Compare (Hold)'}
+            {isComparing ? '👁 Viewing Layer Unfiltered…' : '👁 Compare Layer (Hold)'}
           </button>
         </div>
+      </div>
+
+      {/* ── AI Edit Section ─────────────────────────────── */}
+      <div className="props-panel__section">
+        <div className="props-panel__sec-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span className="props-panel__label" style={{ marginBottom: 0 }}>
+              AI Edit
+            </span>
+            <span className="props-panel__ai-badge">SDXL</span>
+          </div>
+        </div>
+
+        {/* Prompt Input */}
+        <div className="props-panel__field">
+          <label className="props-panel__adj-label" htmlFor="pp-ai-prompt">
+            Describe edit / restyle
+          </label>
+          <textarea
+            id="pp-ai-prompt"
+            className="props-panel__textarea"
+            rows={2}
+            placeholder="e.g. oil painting style, watercolor, cyberpunk..."
+            value={aiPrompt}
+            disabled={isDisabled || isAiLoading}
+            onChange={(e) => setAiPrompt(e.target.value)}
+          />
+        </div>
+
+        {/* Preset Chips */}
+        <div className="props-panel__chips">
+          {AI_EDIT_PRESETS.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              className="props-panel__chip"
+              disabled={isDisabled || isAiLoading}
+              onClick={() => setAiPrompt(preset)}
+            >
+              {preset}
+            </button>
+          ))}
+        </div>
+
+        {/* Strength Slider */}
+        <div className="props-panel__adj-item" style={{ marginTop: '10px' }}>
+          <div className="props-panel__adj-title-row">
+            <label className="props-panel__adj-label" htmlFor="pp-ai-strength">
+              Transformation Strength
+            </label>
+            <span className="props-panel__pct">{aiStrength}%</span>
+          </div>
+          <input
+            id="pp-ai-strength"
+            type="range"
+            min="10"
+            max="100"
+            step="1"
+            value={aiStrength}
+            disabled={isDisabled || isAiLoading}
+            className="props-panel__slider"
+            onChange={(e) => setAiStrength(Number(e.target.value))}
+            aria-valuetext={`${aiStrength}%`}
+          />
+        </div>
+
+        {/* Friendly Error Alert */}
+        {aiError && (
+          <div className="props-panel__error" role="alert">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span>{aiError}</span>
+          </div>
+        )}
+
+        {/* Apply Button */}
+        <button
+          type="button"
+          className="editor-btn editor-btn--gold props-panel__apply-ai-btn"
+          disabled={isDisabled || isAiLoading || !aiPrompt.trim()}
+          onClick={handleApplyAiEdit}
+        >
+          {isAiLoading ? (
+            <>
+              <div className="props-panel__spinner" aria-hidden="true" />
+              <span>Restyling with SDXL…</span>
+            </>
+          ) : (
+            <>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" aria-hidden="true">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+              </svg>
+              <span>Apply AI Edit (New Layer)</span>
+            </>
+          )}
+        </button>
+
+        {isAiLoading && (
+          <p className="props-panel__loading-sub">
+            Generating with Cloudflare SDXL Lightning. This usually takes 10–25s…
+          </p>
+        )}
+      </div>
+
+      {/* ── Compare Session Baseline ─────────────────────── */}
+      <div className="props-panel__section">
+        <button
+          type="button"
+          className={`editor-btn props-panel__compare-btn${isComparingSession ? ' editor-btn--active' : ''}`}
+          title="Hold to preview document as it was when the editing session started"
+          onPointerDown={() => store.getState().setIsComparingSession(true)}
+          onPointerUp={() => store.getState().setIsComparingSession(false)}
+          onPointerLeave={() => store.getState().setIsComparingSession(false)}
+          onTouchStart={() => store.getState().setIsComparingSession(true)}
+          onTouchEnd={() => store.getState().setIsComparingSession(false)}
+        >
+          {isComparingSession ? '👁 Viewing Session Baseline…' : '👁 Hold to Compare (Session Start)'}
+        </button>
       </div>
 
       {/* ── Current rotation readout ────────────────────── */}

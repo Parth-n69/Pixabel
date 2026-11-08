@@ -60,6 +60,9 @@ export function EditorPage() {
               resizeDoc: true,
             });
 
+            // Set initial session baseline snapshot with layer 1 loaded
+            store.getState().snapshotInitialSessionDoc();
+
             if (isMounted) setReady(true);
             return;
           }
@@ -112,7 +115,10 @@ export function EditorPage() {
         />
 
         <div className="editor-sidebar">
-          <PropertiesPanel store={storeRef.current} />
+          <PropertiesPanel
+            store={storeRef.current}
+            assetStore={assetStoreRef.current}
+          />
           <LayersPanel
             store={storeRef.current}
             assetStore={assetStoreRef.current}

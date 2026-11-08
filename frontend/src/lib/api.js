@@ -126,6 +126,24 @@ export async function editImage(payload) {
   });
   const data = await res.json().catch(() => ({}));
 
+  if (res.status === 429 || data.code === 'TOKEN_EXPIRED') {
+    const error = new Error(data.error || 'Your daily limit of generations is used up. Try again tomorrow.');
+    error.code = 'LIMIT_REACHED';
+    throw error;
+  }
+
+  if (data.code === 'CF_RATE_LIMIT') {
+    const error = new Error(data.error || 'Rate limited. Please wait a moment.');
+    error.code = 'CF_RATE_LIMIT';
+    throw error;
+  }
+
+  if (data.code === 'CF_AUTH') {
+    const error = new Error(data.error || 'Cloudflare credentials are not configured. AI edit is unavailable.');
+    error.code = 'CF_AUTH';
+    throw error;
+  }
+
   if (!res.ok) {
     const error = new Error(data.error || `Failed to edit image (HTTP ${res.status})`);
     error.code = data.code || null;
