@@ -411,6 +411,39 @@ describe('Pixabel Document Store', () => {
     });
   });
 
+  // ── resetAllAdjustments ────────────────────────────────────────────
+
+  describe('resetAllAdjustments', () => {
+    it('resets adjustments across all layers in document', () => {
+      const id1 = addLayer('A');
+      const id2 = addLayer('B');
+      dispatch({ type: 'setAdjustments', layerId: id1, adjustments: { brightness: 40, grayscale: true } });
+      dispatch({ type: 'setAdjustments', layerId: id2, adjustments: { contrast: -20, sepia: true } });
+
+      dispatch({ type: 'resetAllAdjustments' });
+
+      expect(getDoc().layers[0].adjustments).toEqual(DEFAULT_ADJUSTMENTS);
+      expect(getDoc().layers[1].adjustments).toEqual(DEFAULT_ADJUSTMENTS);
+    });
+
+    it('undo / redo restores all layers', () => {
+      const id1 = addLayer('A');
+      const id2 = addLayer('B');
+      dispatch({ type: 'setAdjustments', layerId: id1, adjustments: { brightness: 40 } });
+      dispatch({ type: 'setAdjustments', layerId: id2, adjustments: { contrast: -20 } });
+
+      dispatch({ type: 'resetAllAdjustments' });
+      undo();
+
+      expect(getDoc().layers[0].adjustments.brightness).toBe(40);
+      expect(getDoc().layers[1].adjustments.contrast).toBe(-20);
+
+      redo();
+      expect(getDoc().layers[0].adjustments.brightness).toBe(0);
+      expect(getDoc().layers[1].adjustments.contrast).toBe(0);
+    });
+  });
+
   // ── mergeDown ──────────────────────────────────────────────────────
 
   describe('mergeDown', () => {
@@ -543,6 +576,31 @@ describe('Pixabel Document Store', () => {
       // Redo restores it
       redo();
       expect(getDoc().layers[0].opacity).toBe(1);
+    });
+
+    it('50-step brightness drag becomes one undo step', () => {
+      const id = addLayer('BrightnessTest');
+      expect(getDoc().layers[0].adjustments.brightness).toBe(0);
+
+      store.getState().beginGesture();
+      for (let i = 1; i <= 50; i++) {
+        dispatch({
+          type: 'setAdjustments',
+          layerId: id,
+          adjustments: { brightness: i },
+        });
+      }
+      store.getState().endGesture();
+
+      expect(getDoc().layers[0].adjustments.brightness).toBe(50);
+
+      // One undo reverses the whole brightness gesture to where it started
+      undo();
+      expect(getDoc().layers[0].adjustments.brightness).toBe(0);
+
+      // Redo restores it
+      redo();
+      expect(getDoc().layers[0].adjustments.brightness).toBe(50);
     });
 
     it('empty gesture adds no undo entry', () => {

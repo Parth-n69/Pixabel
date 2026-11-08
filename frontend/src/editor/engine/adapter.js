@@ -5,7 +5,7 @@
  * Fabric is only the VIEW. The Document (zustand store) is the
  * single source of truth.
  */
-import { Canvas, FabricImage, Rect, Pattern, Point } from 'fabric';
+import { Canvas, FabricImage, Rect, Pattern, Point, filters } from 'fabric';
 
 export class FabricAdapter {
   /**
@@ -41,8 +41,11 @@ export class FabricAdapter {
 
     // Subscribe to store changes
     this._unsubscribe = store.subscribe((state, prevState) => {
-      if (state.document !== prevState.document && !this._isUserTransforming) {
-        this._syncLayers(state.document);
+      if (
+        (state.document !== prevState.document || state.comparingLayerId !== prevState.comparingLayerId) &&
+        !this._isUserTransforming
+      ) {
+        this._syncLayers(state.document, state.comparingLayerId);
       }
       if (state.selectedLayerId !== prevState.selectedLayerId) {
         this._syncSelection(state.selectedLayerId);
@@ -203,7 +206,7 @@ export class FabricAdapter {
 
   // ── Sync document → Fabric ────────────────────────────────
 
-  _syncLayers(doc) {
+  _syncLayers(doc, comparingLayerId = null) {
     const docIds = new Set(doc.layers.map((l) => l.id));
 
     // Remove fabric objects whose layers were deleted
@@ -222,7 +225,7 @@ export class FabricAdapter {
       // Need to load a new layer image
       if (!obj && layer.assetId && !this._loading.has(layer.id)) {
         this._ensureLayerObject(layer).then(() => {
-          this._syncLayers(this._store.getState().document);
+          this._syncLayers(this._store.getState().document, this._store.getState().comparingLayerId);
         });
         continue;
       }
@@ -245,6 +248,40 @@ export class FabricAdapter {
         globalCompositeOperation:
           layer.blendMode === 'normal' ? 'source-over' : layer.blendMode,
       });
+
+      // Sync adjustments to Fabric filters (bypass if currently being compared to original)
+      const isComparing = comparingLayerId === layer.id;
+      const adj = isComparing ? {} : (layer.adjustments || {});
+      const adjKey = `${adj.brightness || 0}|${adj.contrast || 0}|${adj.saturation || 0}|${adj.blur || 0}|${Boolean(adj.grayscale)}|${Boolean(adj.sepia)}|${Boolean(adj.invert)}|${isComparing}`;
+      if (obj._lastAdjKey !== adjKey) {
+        obj._lastAdjKey = adjKey;
+        const filterList = [];
+        if (!isComparing) {
+          if (adj.brightness) {
+            filterList.push(new filters.Brightness({ brightness: adj.brightness / 100 }));
+          }
+          if (adj.contrast) {
+            filterList.push(new filters.Contrast({ contrast: adj.contrast / 100 }));
+          }
+          if (adj.saturation) {
+            filterList.push(new filters.Saturation({ saturation: adj.saturation / 100 }));
+          }
+          if (adj.blur) {
+            filterList.push(new filters.Blur({ blur: Math.min(1, Math.max(0, adj.blur / 100)) }));
+          }
+          if (adj.grayscale) {
+            filterList.push(new filters.Grayscale());
+          }
+          if (adj.sepia) {
+            filterList.push(new filters.Sepia());
+          }
+          if (adj.invert) {
+            filterList.push(new filters.Invert());
+          }
+        }
+        obj.filters = filterList;
+        obj.applyFilters();
+      }
 
       // Z-order: checkerRect(0), bgRect(1), then layers
       const targetIndex = i + 2;

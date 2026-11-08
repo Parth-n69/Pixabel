@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { DEFAULT_ADJUSTMENTS } from '../document/schema.js';
 
 const BLEND_MODES = [
   'normal',
@@ -15,13 +16,18 @@ const BLEND_MODES = [
 ];
 
 /**
- * PropertiesPanel — shows opacity, blend mode, rotate, and flip controls
+ * PropertiesPanel — shows opacity, blend mode, transforms, and adjustments
+ * (brightness, contrast, saturation, blur, grayscale, sepia, invert)
  * for the currently selected layer.
  */
 export function PropertiesPanel({ store }) {
   const [layer, setLayer] = useState(null);
   const [locked, setLocked] = useState(false);
-  const gestureActive = useRef(false);
+  const [isComparing, setIsComparing] = useState(false);
+
+  const gestureActiveRef = useRef(false);
+  const rafIdRef = useRef(null);
+  const pendingAdjustmentRef = useRef(null);
 
   // Subscribe to store: extract selected layer's relevant properties
   useEffect(() => {
@@ -39,6 +45,18 @@ export function PropertiesPanel({ store }) {
         return;
       }
       setLayer((prev) => {
+        const adj = l.adjustments || DEFAULT_ADJUSTMENTS;
+        const prevAdj = prev?.adjustments;
+        const adjEqual =
+          prevAdj &&
+          prevAdj.brightness === adj.brightness &&
+          prevAdj.contrast === adj.contrast &&
+          prevAdj.saturation === adj.saturation &&
+          prevAdj.blur === adj.blur &&
+          prevAdj.grayscale === adj.grayscale &&
+          prevAdj.sepia === adj.sepia &&
+          prevAdj.invert === adj.invert;
+
         if (
           prev &&
           prev.id === l.id &&
@@ -48,7 +66,8 @@ export function PropertiesPanel({ store }) {
           prev.flipX === l.flipX &&
           prev.flipY === l.flipY &&
           prev.locked === l.locked &&
-          prev.name === l.name
+          prev.name === l.name &&
+          adjEqual
         ) {
           return prev;
         }
@@ -61,6 +80,7 @@ export function PropertiesPanel({ store }) {
           flipX: l.flipX,
           flipY: l.flipY,
           locked: l.locked,
+          adjustments: { ...adj },
         };
       });
       setLocked(l.locked);
@@ -74,13 +94,40 @@ export function PropertiesPanel({ store }) {
     [store],
   );
 
-  // ── Opacity slider with gesture coalescing ──────────────────
+  // ── Unified Slider Gesture Coalescing & rAF Throttling ──
 
-  const handleOpacityPointerDown = () => {
+  const handleSliderPointerDown = () => {
     if (locked) return;
-    gestureActive.current = true;
+    gestureActiveRef.current = true;
     store.getState().beginGesture();
   };
+
+  const handleSliderPointerUp = useCallback(() => {
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+    if (pendingAdjustmentRef.current && layer) {
+      dispatch({
+        type: 'setAdjustments',
+        layerId: layer.id,
+        adjustments: pendingAdjustmentRef.current,
+      });
+      pendingAdjustmentRef.current = null;
+    }
+    if (gestureActiveRef.current) {
+      gestureActiveRef.current = false;
+      store.getState().endGesture();
+    }
+  }, [dispatch, layer]);
+
+  // Global pointerup so releasing outside control always closes gesture cleanly
+  useEffect(() => {
+    window.addEventListener('pointerup', handleSliderPointerUp);
+    return () => window.removeEventListener('pointerup', handleSliderPointerUp);
+  }, [handleSliderPointerUp]);
+
+  // ── Opacity ─────────────────────────────────────────────
 
   const handleOpacityChange = (e) => {
     if (!layer || locked) return;
@@ -88,28 +135,75 @@ export function PropertiesPanel({ store }) {
     dispatch({ type: 'setOpacity', layerId: layer.id, opacity: val });
   };
 
-  const handleOpacityPointerUp = () => {
-    if (gestureActive.current) {
-      gestureActive.current = false;
-      store.getState().endGesture();
+  // ── Adjustments Slider Changes (Throttled with rAF) ──────
+
+  const handleAdjustmentChange = (key, rawVal) => {
+    if (!layer || locked) return;
+    const val = Number(rawVal);
+    pendingAdjustmentRef.current = {
+      ...(pendingAdjustmentRef.current || {}),
+      [key]: val,
+    };
+
+    if (!rafIdRef.current) {
+      rafIdRef.current = requestAnimationFrame(() => {
+        if (pendingAdjustmentRef.current && layer) {
+          dispatch({
+            type: 'setAdjustments',
+            layerId: layer.id,
+            adjustments: pendingAdjustmentRef.current,
+          });
+          pendingAdjustmentRef.current = null;
+        }
+        rafIdRef.current = null;
+      });
     }
   };
 
-  // Attach global pointerup so we always close the gesture
-  useEffect(() => {
-    window.addEventListener('pointerup', handleOpacityPointerUp);
-    return () => window.removeEventListener('pointerup', handleOpacityPointerUp);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // ── Filter Toggles ──────────────────────────────────────
 
-  // ── Blend mode ─────────────────────────────────────────────
+  const handleToggleAdjustment = (key) => {
+    if (!layer || locked) return;
+    const current = Boolean(layer.adjustments?.[key]);
+    dispatch({
+      type: 'setAdjustments',
+      layerId: layer.id,
+      adjustments: { [key]: !current },
+    });
+  };
+
+  // ── Reset Buttons ───────────────────────────────────────
+
+  const handleResetLayer = () => {
+    if (!layer || locked) return;
+    dispatch({ type: 'resetAdjustments', layerId: layer.id });
+  };
+
+  const handleResetAll = () => {
+    dispatch({ type: 'resetAllAdjustments' });
+  };
+
+  // ── Compare (Hold) ──────────────────────────────────────
+
+  const startComparing = () => {
+    if (!layer) return;
+    setIsComparing(true);
+    store.getState().setComparingLayerId(layer.id);
+  };
+
+  const stopComparing = () => {
+    setIsComparing(false);
+    store.getState().setComparingLayerId(null);
+  };
+
+  // ── Blend mode ──────────────────────────────────────────
 
   const handleBlendModeChange = (e) => {
     if (!layer || locked) return;
     dispatch({ type: 'setBlendMode', layerId: layer.id, blendMode: e.target.value });
   };
 
-  // ── Rotate & Flip ─────────────────────────────────────────
+  // ── Rotate & Flip ───────────────────────────────────────
 
   const handleRotateCCW = () => {
     if (!layer || locked) return;
@@ -131,7 +225,7 @@ export function PropertiesPanel({ store }) {
     dispatch({ type: 'flipLayer', layerId: layer.id, axis: 'y' });
   };
 
-  // ── Render ────────────────────────────────────────────────
+  // ── Render ──────────────────────────────────────────────
 
   if (!layer) {
     return (
@@ -145,7 +239,10 @@ export function PropertiesPanel({ store }) {
   }
 
   const opacityPct = Math.round(layer.opacity * 100);
+  const adj = layer.adjustments || DEFAULT_ADJUSTMENTS;
   const isDisabled = locked;
+
+  const formatPct = (val) => (val > 0 ? `+${val}%` : `${val}%`);
 
   return (
     <div className="props-panel" role="region" aria-label="Properties">
@@ -178,7 +275,7 @@ export function PropertiesPanel({ store }) {
             value={opacityPct}
             disabled={isDisabled}
             className="props-panel__slider"
-            onPointerDown={handleOpacityPointerDown}
+            onPointerDown={handleSliderPointerDown}
             onChange={handleOpacityChange}
             aria-valuetext={`${opacityPct}%`}
           />
@@ -266,6 +363,177 @@ export function PropertiesPanel({ store }) {
         </div>
       </div>
 
+      {/* ── Adjustments Section ─────────────────────────── */}
+      <div className="props-panel__section">
+        <div className="props-panel__sec-header">
+          <span className="props-panel__label" style={{ marginBottom: 0 }}>
+            Adjustments
+          </span>
+          <div className="props-panel__actions-row">
+            <button
+              type="button"
+              className="editor-btn props-panel__tiny-btn"
+              title="Reset selected layer adjustments"
+              disabled={isDisabled}
+              onClick={handleResetLayer}
+            >
+              Reset
+            </button>
+            <button
+              type="button"
+              className="editor-btn props-panel__tiny-btn"
+              title="Reset adjustments on all layers"
+              onClick={handleResetAll}
+            >
+              Reset All
+            </button>
+          </div>
+        </div>
+
+        {/* Brightness */}
+        <div className="props-panel__adj-item">
+          <div className="props-panel__adj-title-row">
+            <label className="props-panel__adj-label" htmlFor="pp-adj-brightness">
+              Brightness
+            </label>
+            <span className="props-panel__pct">{formatPct(adj.brightness || 0)}</span>
+          </div>
+          <input
+            id="pp-adj-brightness"
+            type="range"
+            min="-100"
+            max="100"
+            step="1"
+            value={adj.brightness || 0}
+            disabled={isDisabled}
+            className="props-panel__slider"
+            onPointerDown={handleSliderPointerDown}
+            onChange={(e) => handleAdjustmentChange('brightness', e.target.value)}
+            aria-valuetext={formatPct(adj.brightness || 0)}
+          />
+        </div>
+
+        {/* Contrast */}
+        <div className="props-panel__adj-item">
+          <div className="props-panel__adj-title-row">
+            <label className="props-panel__adj-label" htmlFor="pp-adj-contrast">
+              Contrast
+            </label>
+            <span className="props-panel__pct">{formatPct(adj.contrast || 0)}</span>
+          </div>
+          <input
+            id="pp-adj-contrast"
+            type="range"
+            min="-100"
+            max="100"
+            step="1"
+            value={adj.contrast || 0}
+            disabled={isDisabled}
+            className="props-panel__slider"
+            onPointerDown={handleSliderPointerDown}
+            onChange={(e) => handleAdjustmentChange('contrast', e.target.value)}
+            aria-valuetext={formatPct(adj.contrast || 0)}
+          />
+        </div>
+
+        {/* Saturation */}
+        <div className="props-panel__adj-item">
+          <div className="props-panel__adj-title-row">
+            <label className="props-panel__adj-label" htmlFor="pp-adj-saturation">
+              Saturation
+            </label>
+            <span className="props-panel__pct">{formatPct(adj.saturation || 0)}</span>
+          </div>
+          <input
+            id="pp-adj-saturation"
+            type="range"
+            min="-100"
+            max="100"
+            step="1"
+            value={adj.saturation || 0}
+            disabled={isDisabled}
+            className="props-panel__slider"
+            onPointerDown={handleSliderPointerDown}
+            onChange={(e) => handleAdjustmentChange('saturation', e.target.value)}
+            aria-valuetext={formatPct(adj.saturation || 0)}
+          />
+        </div>
+
+        {/* Blur */}
+        <div className="props-panel__adj-item">
+          <div className="props-panel__adj-title-row">
+            <label className="props-panel__adj-label" htmlFor="pp-adj-blur">
+              Blur
+            </label>
+            <span className="props-panel__pct">{(adj.blur || 0)}px</span>
+          </div>
+          <input
+            id="pp-adj-blur"
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value={adj.blur || 0}
+            disabled={isDisabled}
+            className="props-panel__slider"
+            onPointerDown={handleSliderPointerDown}
+            onChange={(e) => handleAdjustmentChange('blur', e.target.value)}
+            aria-valuetext={`${adj.blur || 0}px`}
+          />
+        </div>
+
+        {/* Filter Toggles */}
+        <div className="props-panel__toggles-row">
+          <button
+            type="button"
+            className={`editor-btn props-panel__toggle-btn${adj.grayscale ? ' editor-btn--active' : ''}`}
+            title="Toggle Grayscale filter"
+            aria-pressed={Boolean(adj.grayscale)}
+            disabled={isDisabled}
+            onClick={() => handleToggleAdjustment('grayscale')}
+          >
+            Grayscale
+          </button>
+          <button
+            type="button"
+            className={`editor-btn props-panel__toggle-btn${adj.sepia ? ' editor-btn--active' : ''}`}
+            title="Toggle Sepia filter"
+            aria-pressed={Boolean(adj.sepia)}
+            disabled={isDisabled}
+            onClick={() => handleToggleAdjustment('sepia')}
+          >
+            Sepia
+          </button>
+          <button
+            type="button"
+            className={`editor-btn props-panel__toggle-btn${adj.invert ? ' editor-btn--active' : ''}`}
+            title="Toggle Invert filter"
+            aria-pressed={Boolean(adj.invert)}
+            disabled={isDisabled}
+            onClick={() => handleToggleAdjustment('invert')}
+          >
+            Invert
+          </button>
+        </div>
+
+        {/* Compare (Hold) Button */}
+        <div style={{ marginTop: '10px' }}>
+          <button
+            type="button"
+            className={`editor-btn props-panel__compare-btn${isComparing ? ' editor-btn--active' : ''}`}
+            title="Hold to preview original image without adjustments"
+            disabled={isDisabled}
+            onPointerDown={startComparing}
+            onPointerUp={stopComparing}
+            onPointerLeave={stopComparing}
+            onTouchStart={startComparing}
+            onTouchEnd={stopComparing}
+          >
+            {isComparing ? '👁 Viewing Original…' : '👁 Compare (Hold)'}
+          </button>
+        </div>
+      </div>
+
       {/* ── Current rotation readout ────────────────────── */}
       <div className="props-panel__section props-panel__section--subtle">
         <span className="props-panel__label">Rotation</span>
@@ -274,4 +542,3 @@ export function PropertiesPanel({ store }) {
     </div>
   );
 }
-

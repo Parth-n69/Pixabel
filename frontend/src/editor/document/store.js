@@ -19,6 +19,12 @@ export function createEditorStore(initialDoc) {
 
     // ── View state (not in history) ──
     selectedLayerId: initialDoc?.layers?.[0]?.id ?? null,
+    comparingLayerId: null,
+
+    /** Set the layer currently being compared (preview original without adjustments). */
+    setComparingLayerId(id) {
+      set({ comparingLayerId: id });
+    },
 
     // ── History state (not part of the document) ──
     _undoStack: [],

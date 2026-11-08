@@ -175,6 +175,74 @@
   flex-shrink: 0;
 }
 
+/* ── Adjustments ─────────────────────────────────────────── */
+
+.props-panel__sec-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.props-panel__actions-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.props-panel__tiny-btn {
+  height: 22px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+
+.props-panel__adj-item {
+  margin-bottom: 10px;
+}
+
+.props-panel__adj-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.props-panel__adj-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.props-panel__toggles-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.props-panel__toggle-btn {
+  flex: 1;
+  font-size: 11px;
+  height: 28px;
+  padding: 0;
+  justify-content: center;
+}
+
+.props-panel__compare-btn {
+  width: 100%;
+  font-size: 11px;
+  height: 30px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  justify-content: center;
+}
+
 /* ── Responsive ──────────────────────────────────────────── */
 
 @media (max-width: 768px) {

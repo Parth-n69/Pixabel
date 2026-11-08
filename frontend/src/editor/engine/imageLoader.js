@@ -164,6 +164,20 @@ function drawLayerToCtx(ctx, layer, assetStore) {
       ctx.globalCompositeOperation =
         layer.blendMode === 'normal' || !layer.blendMode ? 'source-over' : layer.blendMode;
 
+      if (layer.adjustments) {
+        const adj = layer.adjustments;
+        const b = 100 + (adj.brightness || 0);
+        const c = 100 + (adj.contrast || 0);
+        const s = 100 + (adj.saturation || 0);
+        const blur = Math.max(0, (adj.blur || 0) * 0.2);
+        const filters = [`brightness(${b}%)`, `contrast(${c}%)`, `saturate(${s}%)`];
+        if (blur > 0) filters.push(`blur(${blur}px)`);
+        if (adj.grayscale) filters.push('grayscale(100%)');
+        if (adj.sepia) filters.push('sepia(100%)');
+        if (adj.invert) filters.push('invert(100%)');
+        ctx.filter = filters.join(' ');
+      }
+
       ctx.translate(layer.x, layer.y);
       if (layer.rotation) {
         ctx.rotate((layer.rotation * Math.PI) / 180);

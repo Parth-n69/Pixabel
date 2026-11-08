@@ -18,6 +18,9 @@ export const DEFAULT_ADJUSTMENTS = Object.freeze({
   blur: 0,
   noise: 0,
   vignette: 0,
+  grayscale: false,
+  sepia: false,
+  invert: false,
 });
 
 let _counter = 0;

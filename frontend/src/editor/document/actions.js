@@ -106,6 +106,13 @@ export function applyAction(draft, action) {
       break;
     }
 
+    case 'resetAllAdjustments': {
+      for (const layer of draft.layers) {
+        layer.adjustments = { ...DEFAULT_ADJUSTMENTS };
+      }
+      break;
+    }
+
     case 'mergeDown': {
       const idx = requireLayerIndex(draft, action.layerId);
       if (idx === 0) throw new Error('Cannot merge down: no layer below');
