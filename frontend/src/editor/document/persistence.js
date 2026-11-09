@@ -1,9 +1,4 @@
-/**
- * persistence.js — IndexedDB-backed draft autosave for Pixabel Editor.
- *
- * Saves the Document JSON and image Blobs into IndexedDB so full sessions
- * can be seamlessly restored across page refreshes or unexpected crashes.
- */
+
 import { serializeDocument, loadDocument } from './serialize.js';
 
 const DB_NAME = 'PixabelEditorDB';

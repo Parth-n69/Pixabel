@@ -15,7 +15,7 @@ Generate stunning images from text prompts and edit them with precision using st
 ## 🗂️ Project Structure
 
 ```
-image-gen-model/
+image-gen-application/
 ├── backend/
 │   ├── app.py                  # Flask API server with CORS
 │   ├── models_config.py        # Centralized Cloudflare model registry
