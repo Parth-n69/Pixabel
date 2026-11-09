@@ -44,6 +44,11 @@ export class AssetStore {
     }
   }
 
+  /** Get all entries as an array of [assetId, { blob, objectUrl }]. */
+  entries() {
+    return Array.from(this.#assets.entries());
+  }
+
   /** Dispose of all assets. */
   dispose() {
     for (const [id] of this.#assets) this.remove(id);

@@ -3,6 +3,7 @@ import { supabase } from './supabase';
 export const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
 
 /**
+ * 9
  * Fetch wrapper that adds the Bearer token from Supabase session and prepends the API base URL.
  * @param {string} endpoint - Path relative to base URL or full URL
  * @param {RequestInit & { token?: string }} [options] - Standard fetch options

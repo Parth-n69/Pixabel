@@ -138,8 +138,27 @@ export function applyAction(draft, action) {
     }
 
     case 'setDocumentSize': {
-      if (action.width > 0) draft.width = action.width;
-      if (action.height > 0) draft.height = action.height;
+      const MAX_DIM = 4096;
+      let w = action.width;
+      let h = action.height;
+      if (w > MAX_DIM || h > MAX_DIM) {
+        const ratio = MAX_DIM / Math.max(w, h);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+      }
+      if (w > 0) draft.width = w;
+      if (h > 0) draft.height = h;
+      break;
+    }
+
+    case 'loadDocument': {
+      if (action.document) {
+        draft.id = action.document.id;
+        draft.width = action.document.width;
+        draft.height = action.document.height;
+        draft.background = action.document.background;
+        draft.layers = action.document.layers.map((l) => ({ ...l }));
+      }
       break;
     }
 
