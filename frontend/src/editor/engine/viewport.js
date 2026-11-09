@@ -28,6 +28,7 @@ export class ViewportController {
     this._canvas = canvas;
     this._onChange = onChange;
     this._zoom = 1;
+    this._tool = 'move';
     this._spaceHeld = false;
     this._panning = false;
     this._lastPanX = 0;
@@ -45,6 +46,44 @@ export class ViewportController {
 
   get zoom() {
     return this._zoom;
+  }
+
+  get tool() {
+    return this._tool;
+  }
+
+  setTool(tool) {
+    this._tool = tool === 'hand' ? 'hand' : 'move';
+    if (this._tool === 'hand') {
+      this._canvas.defaultCursor = 'grab';
+      this._canvas.hoverCursor = 'grab';
+      this._canvas.setCursor('grab');
+      this._canvas.selection = false;
+      this._canvas.forEachObject((obj) => {
+        if (obj._savedSelectable === undefined) {
+          obj._savedSelectable = obj.selectable;
+          obj._savedEvented = obj.evented;
+        }
+        obj.selectable = false;
+        obj.evented = false;
+      });
+      if (this._canvas.getActiveObject()) {
+        this._canvas.discardActiveObject();
+      }
+    } else {
+      this._canvas.defaultCursor = 'default';
+      this._canvas.hoverCursor = 'move';
+      this._canvas.setCursor('default');
+      this._canvas.forEachObject((obj) => {
+        if (obj._savedSelectable !== undefined) {
+          obj.selectable = obj._savedSelectable;
+          obj.evented = obj._savedEvented;
+          delete obj._savedSelectable;
+          delete obj._savedEvented;
+        }
+      });
+    }
+    this._canvas.requestRenderAll();
   }
 
   // ── Programmatic API ──────────────────────────────────────
@@ -124,7 +163,7 @@ export class ViewportController {
   _setupPan() {
     this._canvas.on('mouse:down', (opt) => {
       const e = opt.e;
-      if (this._spaceHeld || e.button === 1) {
+      if (this._spaceHeld || e.button === 1 || this._tool === 'hand') {
         this._panning = true;
         this._lastPanX = e.clientX;
         this._lastPanY = e.clientY;
@@ -165,7 +204,7 @@ export class ViewportController {
     this._canvas.on('mouse:up', () => {
       if (this._panning) {
         this._panning = false;
-        this._canvas.setCursor(this._spaceHeld ? 'grab' : 'default');
+        this._canvas.setCursor(this._spaceHeld || this._tool === 'hand' ? 'grab' : 'default');
       }
     });
   }

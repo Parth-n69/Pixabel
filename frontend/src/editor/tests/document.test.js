@@ -883,4 +883,59 @@ describe('Pixabel Document Store', () => {
       });
     });
   });
+
+  // ── Part 8: Polish and Shortcuts ────────────────────────────────────
+
+  describe('Part 8: Polish and Shortcuts', () => {
+    it('supports layer reordering shortcuts (bring forward / send backward)', () => {
+      const a = addLayer('A'); // index 0
+      const b = addLayer('B'); // index 1
+      const c = addLayer('C'); // index 2
+
+      // Send C backward (index 2 -> index 1)
+      const layers = getDoc().layers;
+      const cIdx = layers.findIndex((l) => l.id === c);
+      dispatch({ type: 'reorderLayer', layerId: c, toIndex: cIdx - 1 });
+      expect(getDoc().layers.map((l) => l.name)).toEqual(['A', 'C', 'B']);
+
+      // Bring A forward (index 0 -> index 1)
+      const aIdx = getDoc().layers.findIndex((l) => l.id === a);
+      dispatch({ type: 'reorderLayer', layerId: a, toIndex: aIdx + 1 });
+      expect(getDoc().layers.map((l) => l.name)).toEqual(['C', 'A', 'B']);
+
+      undo();
+      expect(getDoc().layers.map((l) => l.name)).toEqual(['A', 'C', 'B']);
+    });
+
+    it('coalesces arrow key nudges into a single undo step', () => {
+      const id = addLayer('NudgeItem');
+      expect(getDoc().layers[0].x).toBe(0);
+      expect(getDoc().layers[0].y).toBe(0);
+
+      // Begin nudge gesture
+      store.getState().beginGesture();
+      for (let i = 1; i <= 10; i++) {
+        dispatch({ type: 'transformLayer', layerId: id, x: i, y: i });
+      }
+      store.getState().endGesture();
+
+      expect(getDoc().layers[0].x).toBe(10);
+      expect(getDoc().layers[0].y).toBe(10);
+
+      // A single undo returns directly to 0,0
+      undo();
+      expect(getDoc().layers[0].x).toBe(0);
+      expect(getDoc().layers[0].y).toBe(0);
+    });
+
+    it('duplicate shortcut preserves selection workflow', () => {
+      const id = addLayer('LayerToDup');
+      dispatch({ type: 'duplicateLayer', layerId: id });
+      expect(getDoc().layers).toHaveLength(2);
+      expect(getDoc().layers[1].name).toBe('LayerToDup copy');
+
+      undo();
+      expect(getDoc().layers).toHaveLength(1);
+    });
+  });
 });

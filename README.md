@@ -156,14 +156,118 @@ Pixabel is built exclusively on **Cloudflare Workers AI**:
 - **Lightbox Modal:** Full-resolution view with generation metadata, negative prompt, and **"Reuse Settings"** button.
 - **Clear History Dialog:** Delete local history with option to preserve favorited creations.
 
-### 3. Edit Tab
-- **Image Input:** Drag-and-drop zone and file picker supporting PNG, JPEG, and WEBP (up to 8MB).
-- **AI Restyle:** Powered by Cloudflare Workers AI (SDXL Lightning img2img) with transformation strength slider (10–100%) and preset chips.
-- **Basic Tools:** Rotate (-90° / +90°), flip horizontal / vertical.
-- **Adjustments:** Sliders for brightness (0–200%), contrast (0–200%), saturation (0–200%), and blur (0–20px).
-- **Filters:** Grayscale, Sepia, and Invert toggles.
-- **Compare:** Hold-to-compare overlay to preview original vs. modified state.
-- **History & Export:** 10-state undo stack, save edited image to gallery, or download.
+### 3. Pixabel Multi-Layer Editor
+
+The Pixabel Editor is a full-featured, non-destructive, multi-layer creative image suite:
+
+- **Layer Stack:** Unlimited image layers with z-index reordering, duplicate, delete, visibility toggles, layer locking, opacity sliders, and standard blend modes (Multiply, Screen, Overlay, etc.).
+- **Live Non-Destructive Adjustments:** Fabric.js adjustment filters recomputed dynamically from the pristine original asset (brightness, contrast, saturation, blur, grayscale, sepia, invert).
+- **Transforms & Alignment:** Freehand canvas transform handles, 90° clockwise/counter-clockwise rotation, horizontal/vertical flipping, Center on Canvas, and Fit to Canvas shortcuts.
+- **AI Restyle (SDXL Lightning):** Non-destructive image-to-image AI editing that preserves original pixels and outputs results onto a dedicated `"AI edit"` layer directly above the selection.
+- **Hold to Compare:** Real-time baseline comparison against the session start state or layer original.
+- **Floating Canvas Viewport:** Ultra-smooth pan/zoom (5% to 800%) with cursor zoom, pinch-to-zoom, space-drag panning, fit-to-artboard, and 100% reset.
+- **Export & Gallery:** Multi-format exporter (PNG, JPG with matte color, WebP), quality slider, 1x/2x scale, longest-side 4096px safety clamp, and direct "Save to Gallery".
+- **Session Autosave:** Automatic 2-second debounced IndexedDB draft persistence with "Restore Session" prompts on page refresh.
+
+---
+
+## 🏗️ Pixabel Editor Architecture
+
+The editor is architected around the unidirectional data flow pattern where the Document Store is the single source of truth, and Fabric.js is strictly a reactive view.
+
+```
+                    ┌──────────────────────────┐
+                    │      Document Store      │
+                    │   (Zustand + Immer.js)   │
+                    └────────────┬─────────────┘
+                                 │
+                 ┌───────────────┴───────────────┐
+                 ▼                               ▼
+       ┌───────────────────┐           ┌───────────────────┐
+       │   FabricAdapter   │           │   React UI Tree   │
+       │   (Fabric.js)     │           │  (Toolbar/Panels) │
+       └─────────┬─────────┘           └───────────────────┘
+                 │
+                 ▼
+       ┌───────────────────┐
+       │    AssetStore     │ ◄─── IndexedDB Draft Autosave
+       │ (Lossless Blobs)  │
+       └───────────────────┘
+```
+
+### 1. Document Model & Immer Patch History
+- **Document Schema:** Defined in `frontend/src/editor/document/schema.js`. Every document contains an ID, dimensions (clamped at 4096px), background fill, and an ordered array of layers with transform, opacity, blendMode, and adjustment states.
+- **Patch-Based History:** Actions in `actions.js` are executed with Immer's `produceWithPatches`. Each user gesture generates minimal forward and inverse JSON patches stored in `_undoStack` and `_redoStack` (capped at 100 steps).
+- **Gesture Coalescing:** High-frequency gestures (e.g. dragging an adjustment slider, continuous arrow key nudging) are framed with `beginGesture()` and `endGesture()`. The intermediate states are coalesced into a single undo/redo patch, guaranteeing that one undo returns the user exactly to their baseline.
+
+### 2. AssetStore (Zero Pixel Baking)
+- Defined in `frontend/src/editor/engine/assetStore.js`. Raw image files and edited frames are stored as binary `Blob` objects in an in-memory cache keyed by `assetId`.
+- Image filters, rotations, and scalings are never baked into pixels during composition. When rendering or exporting, the engine references the clean master asset, preventing generational compression loss.
+
+### 3. Viewport & FabricAdapter
+- **FabricAdapter (`frontend/src/editor/engine/adapter.js`):** Subscribes to the document store and synchronizes canvas objects. Renders an artboard with a luxury dark checkerboard transparency pattern (`#26262c` / `#1e1e23`) with champagne gold border accents.
+- **ViewportController (`frontend/src/editor/engine/viewport.js`):** Controls canvas zoom (5% to 800%) and panning. Supports Space+drag panning, middle-click pan, wheel zoom toward pointer coordinates, pinch gestures, and dedicated Move (`V`) and Hand (`H`) tools. All pan/zoom operations are throttled via `requestAnimationFrame` for 60/120 FPS performance.
+
+### 4. Live Adjustment Filters
+- Adjusted via `PropertiesPanel.jsx` and rendered via Fabric filters (`Brightness`, `Contrast`, `Saturation`, `Blur`, `Grayscale`, `Sepia`, `Invert`).
+- Throttled via `requestAnimationFrame` with pending ref cancellation. Fabric objects compute filters directly on hardware using WebGL when available.
+
+### 5. SDXL Lightning AI Restyle
+- Accessible in the Properties Panel. Sends the selected layer's data URL to the backend `/edit` endpoint (or Cloudflare Workers AI `sdxl-lightning` img2img).
+- Automatically inserts the generated image as a new layer named `"AI edit"` directly above the selected layer, keeping the original layer intact and enabling easy layer toggling, opacity blending, and undo.
+
+### 6. Export Engine & Autosave
+- **Export Engine (`frontend/src/editor/engine/exportEngine.js`):** Flattens visible layers into an offscreen canvas at 1x or 2x resolution (capped at 4096px on the longest side). Exports to PNG (preserving transparency), JPG (with user-selected background color), or WebP with configurable quality.
+- **Persistence (`frontend/src/editor/document/persistence.js`):** Debounces document and asset saves to IndexedDB after 2 seconds of idle time. Reloading the page prompts the user to restore their editing session.
+
+---
+
+## ⌨️ Keyboard Shortcuts
+
+| Shortcut | Action | Scope / Condition |
+|---|---|---|
+| <kbd>Ctrl</kbd> + <kbd>Z</kbd> | Undo | Disabled while editing text |
+| <kbd>Ctrl</kbd> + <kbd>Y</kbd> / <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd> | Redo | Disabled while editing text |
+| <kbd>Ctrl</kbd> + <kbd>D</kbd> | Duplicate selected layer | Layer selected |
+| <kbd>Delete</kbd> / <kbd>Backspace</kbd> | Delete selected layer | Layer unlocked |
+| <kbd>Ctrl</kbd> + <kbd>]</kbd> | Bring layer forward | Layer selected |
+| <kbd>Ctrl</kbd> + <kbd>[</kbd> | Send layer backward | Layer selected |
+| <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> | Nudge layer 1px (coalesced) | Layer unlocked |
+| <kbd>Shift</kbd> + <kbd>Arrow</kbd> | Nudge layer 10px | Layer unlocked |
+| <kbd>V</kbd> | Switch to Move tool | Canvas viewport |
+| <kbd>H</kbd> | Switch to Hand tool (Pan) | Canvas viewport |
+| <kbd>Space</kbd> + Drag | Temporary Pan | Canvas viewport |
+| <kbd>Ctrl</kbd> + <kbd>V</kbd> | Paste image from clipboard | Global |
+| <kbd>?</kbd> | Open Shortcuts Help modal | Global |
+
+---
+
+## ✅ Feature Parity Checklist (Old Edit Tab vs New Multi-Layer Editor)
+
+Every feature of the original single-canvas Edit tab has been verified in the new architecture:
+
+| Feature from Old Edit Tab | New Editor Status | Notes / Enhancements in New Editor |
+|---|---|---|
+| **Image Loading from Gallery** | ✅ Verified | Opens via `?img=<id>`, loads into AssetStore, auto-fits viewport. |
+| **File Picker (PNG, JPEG, WEBP)** | ✅ Verified | Multi-file support; adds each image as a new layer. |
+| **Drag & Drop Upload** | ✅ Verified | Drag-over drop hint on canvas and drop onto layers panel. |
+| **Clipboard Paste (Ctrl+V)** | ✅ Verified | Automatically converts pasted images into new layers. |
+| **Brightness Adjustment** | ✅ Verified | Non-destructive Fabric filter (-100% to +100%), rAF-throttled. |
+| **Contrast Adjustment** | ✅ Verified | Non-destructive Fabric filter (-100% to +100%). |
+| **Saturation Adjustment** | ✅ Verified | Non-destructive Fabric filter (-100% to +100%). |
+| **Blur Adjustment** | ✅ Verified | Non-destructive Fabric blur filter (0 to 100px). |
+| **Grayscale Toggle** | ✅ Verified | Recomputed from original asset without pixel degradation. |
+| **Sepia Toggle** | ✅ Verified | Non-destructive live filter toggle. |
+| **Invert Toggle** | ✅ Verified | Non-destructive live filter toggle. |
+| **Reset Adjustments** | ✅ Verified | Per-layer "Reset" + global "Reset All Adjustments". |
+| **90° Rotation (CW / CCW)** | ✅ Verified | Instant 90° rotation buttons with full undo/redo. |
+| **Horizontal / Vertical Flip** | ✅ Verified | Non-destructive axis mirroring per layer. |
+| **Hold to Compare Original** | ✅ Verified | Compares active layer to original or entire document to session start. |
+| **AI Magic Edit (img2img)** | ✅ Verified | SDXL Lightning; creates a new non-destructive layer above selection. |
+| **AI Preset Chips & Prompts** | ✅ Verified | Quick-fill chips for style transfer and editing prompts. |
+| **Undo / Redo Stack** | ✅ Verified | Upgraded from 10 flat states to 100 Immer patch states with coalescing. |
+| **Export / Download** | ✅ Verified | Upgraded with scale (1x/2x), quality, formats (PNG, JPG, WebP), 4096px clamp. |
+| **Save to Gallery** | ✅ Verified | Flattens composition and stores in existing local creations gallery. |
 
 ### 4. Profile & Preferences
 - **Overview:** Deterministic gradient avatar with initials, member since, last sign-in, and generation statistics.

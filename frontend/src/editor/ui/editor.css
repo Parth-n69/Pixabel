@@ -604,21 +604,45 @@
     flex-direction: column;
   }
 
+  .editor-canvas-area {
+    flex: 1 1 50%;
+    min-height: 240px;
+  }
+
+  /* Bottom drawer on mobile */
   .editor-sidebar {
     width: 100%;
     max-width: none;
     border-left: none;
     border-top: 1px solid var(--border);
-    max-height: 320px;
+    max-height: 48vh;
+    min-height: 200px;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+    background: var(--surface);
+    z-index: 15;
+  }
+
+  .editor-sidebar-header {
+    padding: 6px 8px;
+  }
+
+  .editor-sidebar-tabs {
+    padding: 2px;
+  }
+
+  .editor-sidebar-tab {
+    height: 32px;
+    font-size: 12px;
   }
 
   .editor-sidebar-pane--split {
-    min-height: 140px;
+    min-height: 120px;
   }
 
   .editor-toolbar {
     padding: 6px 8px;
     gap: 4px;
+    overflow-x: auto;
   }
 
   .editor-btn {
@@ -629,11 +653,13 @@
 
   .editor-btn--icon {
     width: 30px;
+    min-width: 30px;
   }
 
   .editor-zoom-bar {
-    bottom: 12px;
-    padding: 3px 6px;
+    bottom: 8px;
+    padding: 2px 6px;
     gap: 2px;
+    transform: translateX(-50%) scale(0.9);
   }
 }

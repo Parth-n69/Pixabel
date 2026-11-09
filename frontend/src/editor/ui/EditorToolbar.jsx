@@ -11,7 +11,17 @@ const PRESETS = [
 /**
  * EditorToolbar — Undo / Redo, Add Image, Document Presets, and Studio link.
  */
-export function EditorToolbar({ store, assetStore, viewportRef, onOpenExport }) {
+export function EditorToolbar({
+  store,
+  assetStore,
+  viewportRef,
+  onOpenExport,
+  activeTool = 'move',
+  onSelectTool,
+  onOpenShortcuts,
+  onUndo,
+  onRedo,
+}) {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [isComparingSession, setIsComparingSession] = useState(false);
@@ -81,7 +91,16 @@ export function EditorToolbar({ store, assetStore, viewportRef, onOpenExport }) 
       />
 
       <div className="editor-toolbar__group">
-        <Link to="/" className="editor-btn editor-btn--ghost" title="Back to Pixabel Studio">
+        <Link
+          to="/"
+          className="editor-btn editor-btn--ghost"
+          title="Back to Pixabel Studio"
+          onClick={(e) => {
+            if (canUndo && !window.confirm('You have unsaved changes. Return to Pixabel Studio?')) {
+              e.preventDefault();
+            }
+          }}
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
@@ -91,11 +110,43 @@ export function EditorToolbar({ store, assetStore, viewportRef, onOpenExport }) 
 
       <div className="editor-toolbar__separator" />
 
+      {/* ── Tool selection (Move vs Hand) ── */}
+      <div className="editor-toolbar__group" role="radiogroup" aria-label="Tool selection">
+        <button
+          type="button"
+          role="radio"
+          aria-checked={activeTool === 'move'}
+          className={`editor-btn editor-btn--icon ${activeTool === 'move' ? 'editor-btn--active' : ''}`}
+          onClick={() => onSelectTool?.('move')}
+          title="Move tool (V)"
+          aria-label="Move / Selection tool (V)"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+            <path d="M5 3l14 9-7 2-3 7L5 3z" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          role="radio"
+          aria-checked={activeTool === 'hand'}
+          className={`editor-btn editor-btn--icon ${activeTool === 'hand' ? 'editor-btn--active' : ''}`}
+          onClick={() => onSelectTool?.('hand')}
+          title="Hand tool (H) — click & drag to pan"
+          aria-label="Hand tool (H)"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+            <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v3M14 9V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v7M10 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8M6 14v-2a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v6a7 7 0 0 0 7 7h4a7 7 0 0 0 7-7v-6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2" />
+          </svg>
+        </button>
+      </div>
+
+      <div className="editor-toolbar__separator" />
+
       <div className="editor-toolbar__group">
         <button
           className="editor-btn"
           disabled={!canUndo}
-          onClick={() => store.getState().undo()}
+          onClick={() => (onUndo ? onUndo() : store.getState().undo())}
           aria-label="Undo"
           title="Undo (Ctrl+Z)"
         >
@@ -104,9 +155,9 @@ export function EditorToolbar({ store, assetStore, viewportRef, onOpenExport }) 
         <button
           className="editor-btn"
           disabled={!canRedo}
-          onClick={() => store.getState().redo()}
+          onClick={() => (onRedo ? onRedo() : store.getState().redo())}
           aria-label="Redo"
-          title="Redo (Ctrl+Shift+Z)"
+          title="Redo (Ctrl+Shift+Z or Ctrl+Y)"
         >
           ↪ Redo
         </button>
@@ -190,6 +241,23 @@ export function EditorToolbar({ store, assetStore, viewportRef, onOpenExport }) 
         <span className="editor-toolbar__dim" title="Current document dimensions">
           {docSize.width} × {docSize.height}
         </span>
+      </div>
+
+      <div className="editor-toolbar__separator" />
+
+      <div className="editor-toolbar__group">
+        <button
+          type="button"
+          className="editor-btn editor-btn--icon"
+          onClick={onOpenShortcuts}
+          title="Keyboard shortcuts (?)"
+          aria-label="Keyboard shortcuts"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01" />
+          </svg>
+        </button>
       </div>
     </div>
   );

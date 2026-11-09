@@ -1,0 +1,144 @@
+/* ── Shortcuts Help Modal ────────────────────────────────── */
+.shortcuts-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 12, 0.78);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+  animation: shortcutsFadeIn 0.15s ease-out;
+}
+
+@keyframes shortcutsFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.shortcuts-modal-card {
+  width: 100%;
+  max-width: 520px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 1px rgba(255, 255, 255, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: 90vh;
+}
+
+.shortcuts-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.shortcuts-modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--gold);
+}
+
+.shortcuts-modal-title-group h2 {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.shortcuts-modal-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.shortcuts-modal-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin: 0 0 8px 0;
+}
+
+.shortcuts-modal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shortcuts-modal-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.shortcuts-modal-desc {
+  color: var(--text);
+}
+
+.shortcuts-modal-keys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.shortcuts-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-bottom: 2px solid var(--border-strong);
+  border-radius: 4px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gold-soft);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.shortcuts-key-plus {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin: 0 1px;
+}
+
+.shortcuts-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.shortcuts-modal-note {
+  font-size: 11px;
+  color: var(--text-muted);
+}

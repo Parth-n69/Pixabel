@@ -13,6 +13,7 @@ import { PropertiesPanel } from './PropertiesPanel.jsx';
 import { LayersPanel } from './LayersPanel.jsx';
 import { ZoomBar } from './ZoomBar.jsx';
 import { ExportDialog } from './ExportDialog.jsx';
+import { ShortcutsModal } from './ShortcutsModal.jsx';
 import './editor.css';
 import './LayersPanel.css';
 import './PropertiesPanel.css';
@@ -46,10 +47,229 @@ export function EditorPage() {
   const [draftToRestore, setDraftToRestore] = useState(null);
   const [sidebarTab, setSidebarTab] = useState('split');
   const [layerCount, setLayerCount] = useState(0);
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [activeTool, setActiveTool] = useState('move');
+  const [liveAnnouncement, setLiveAnnouncement] = useState('');
 
   const autosaveTimerRef = useRef(null);
 
+  const announce = useCallback((msg) => {
+    setLiveAnnouncement('');
+    requestAnimationFrame(() => {
+      setLiveAnnouncement(msg);
+    });
+  }, []);
+
   const handleZoomChange = useCallback((z) => setZoom(z), []);
+
+  const handleSelectTool = useCallback(
+    (tool) => {
+      setActiveTool(tool);
+      viewportRef.current?.setTool(tool);
+      announce(tool === 'hand' ? 'Hand tool active' : 'Move tool active');
+    },
+    [announce]
+  );
+
+  const handleUndo = useCallback(() => {
+    if (storeRef.current?.getState()._undoStack.length > 0) {
+      storeRef.current.getState().undo();
+      announce('Undo action');
+    }
+  }, [announce]);
+
+  const handleRedo = useCallback(() => {
+    if (storeRef.current?.getState()._redoStack.length > 0) {
+      storeRef.current.getState().redo();
+      announce('Redo action');
+    }
+  }, [announce]);
+
+  // ── Unsaved-changes warning on page leave ─────────────────
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      const undoLen = storeRef.current?.getState()._undoStack?.length || 0;
+      if (undoLen > 0) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  // ── Keyboard Shortcuts Listener ──────────────────────────
+  useEffect(() => {
+    if (!ready || !storeRef.current) return;
+    const store = storeRef.current;
+    let nudgeDebounceTimer = null;
+    let isNudgeActive = false;
+
+    const handleKeyDown = (e) => {
+      // Ignore if user is typing in an input, textarea, select, or contenteditable
+      const target = e.target;
+      const tag = target?.tagName?.toLowerCase();
+      if (
+        tag === 'input' ||
+        tag === 'textarea' ||
+        tag === 'select' ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+      const key = e.key;
+
+      // 1. Undo: Ctrl+Z (without shift)
+      if (cmdOrCtrl && !e.shiftKey && (key === 'z' || key === 'Z')) {
+        e.preventDefault();
+        if (store.getState()._undoStack.length > 0) {
+          store.getState().undo();
+          announce('Undo action');
+        }
+        return;
+      }
+
+      // 2. Redo: Ctrl+Y or Ctrl+Shift+Z
+      if (
+        (cmdOrCtrl && (key === 'y' || key === 'Y')) ||
+        (cmdOrCtrl && e.shiftKey && (key === 'z' || key === 'Z'))
+      ) {
+        e.preventDefault();
+        if (store.getState()._redoStack.length > 0) {
+          store.getState().redo();
+          announce('Redo action');
+        }
+        return;
+      }
+
+      // 3. Duplicate: Ctrl+D
+      if (cmdOrCtrl && (key === 'd' || key === 'D')) {
+        e.preventDefault();
+        const selId = store.getState().selectedLayerId;
+        if (selId) {
+          const docBefore = store.getState().document;
+          const idx = docBefore.layers.findIndex((l) => l.id === selId);
+          if (idx !== -1) {
+            store.getState().dispatch({ type: 'duplicateLayer', layerId: selId });
+            const docAfter = store.getState().document;
+            const newLayer = docAfter.layers[idx + 1];
+            if (newLayer) {
+              store.getState().setSelectedLayerId(newLayer.id);
+            }
+            announce(`Layer duplicated: ${docBefore.layers[idx].name}`);
+          }
+        }
+        return;
+      }
+
+      // 4. Delete: Delete or Backspace
+      if (key === 'Delete' || key === 'Backspace') {
+        const selId = store.getState().selectedLayerId;
+        if (selId) {
+          const layer = store.getState().document.layers.find((l) => l.id === selId);
+          if (layer && !layer.locked) {
+            e.preventDefault();
+            store.getState().dispatch({ type: 'deleteLayer', layerId: selId });
+            announce(`Layer deleted: ${layer.name}`);
+          }
+        }
+        return;
+      }
+
+      // 5. Reorder: Ctrl+[ (Send backward) and Ctrl+] (Bring forward)
+      if (cmdOrCtrl && (key === '[' || key === ']')) {
+        e.preventDefault();
+        const selId = store.getState().selectedLayerId;
+        if (selId) {
+          const layers = store.getState().document.layers;
+          const fromIdx = layers.findIndex((l) => l.id === selId);
+          if (fromIdx !== -1) {
+            const delta = key === ']' ? 1 : -1;
+            const toIndex = Math.max(0, Math.min(layers.length - 1, fromIdx + delta));
+            if (toIndex !== fromIdx) {
+              store.getState().dispatch({ type: 'reorderLayer', layerId: selId, toIndex });
+              announce(key === ']' ? 'Layer brought forward' : 'Layer sent backward');
+            }
+          }
+        }
+        return;
+      }
+
+      // 6. Tool switching: V for Move tool, H for Hand tool, ? for Help
+      if (!cmdOrCtrl && !e.altKey) {
+        if (key === 'v' || key === 'V') {
+          e.preventDefault();
+          handleSelectTool('move');
+          return;
+        }
+        if (key === 'h' || key === 'H') {
+          e.preventDefault();
+          handleSelectTool('hand');
+          return;
+        }
+        if (key === '?') {
+          e.preventDefault();
+          setIsShortcutsOpen(true);
+          return;
+        }
+      }
+
+      // 7. Arrow keys nudge: ArrowUp, ArrowDown, ArrowLeft, ArrowRight
+      if (
+        key === 'ArrowUp' ||
+        key === 'ArrowDown' ||
+        key === 'ArrowLeft' ||
+        key === 'ArrowRight'
+      ) {
+        const selId = store.getState().selectedLayerId;
+        if (selId) {
+          const layer = store.getState().document.layers.find((l) => l.id === selId);
+          if (layer && !layer.locked) {
+            e.preventDefault();
+            const step = e.shiftKey ? 10 : 1;
+            let dx = 0;
+            let dy = 0;
+            if (key === 'ArrowUp') dy = -step;
+            else if (key === 'ArrowDown') dy = step;
+            else if (key === 'ArrowLeft') dx = -step;
+            else if (key === 'ArrowRight') dx = step;
+
+            // Start gesture if not active to coalesce continuous arrow nudges
+            if (!isNudgeActive) {
+              isNudgeActive = true;
+              store.getState().beginGesture();
+            }
+
+            store.getState().dispatch({
+              type: 'transformLayer',
+              layerId: selId,
+              x: layer.x + dx,
+              y: layer.y + dy,
+            });
+
+            if (nudgeDebounceTimer) clearTimeout(nudgeDebounceTimer);
+            nudgeDebounceTimer = setTimeout(() => {
+              if (isNudgeActive) {
+                isNudgeActive = false;
+                store.getState().endGesture();
+                announce(`Nudged layer ${layer.name}`);
+              }
+            }, 400);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (nudgeDebounceTimer) clearTimeout(nudgeDebounceTimer);
+    };
+  }, [ready, announce, handleSelectTool]);
 
   // Track layer count for tab badge
   useEffect(() => {
@@ -251,11 +471,26 @@ export function EditorPage() {
         </div>
       )}
 
+      {/* ── Screen Reader Live Announcements ── */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {liveAnnouncement}
+      </div>
+
       <EditorToolbar
         store={storeRef.current}
         assetStore={assetStoreRef.current}
         viewportRef={viewportRef}
         onOpenExport={() => setIsExportOpen(true)}
+        activeTool={activeTool}
+        onSelectTool={handleSelectTool}
+        onOpenShortcuts={() => setIsShortcutsOpen(true)}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
       />
 
       <div className="editor-body">
@@ -383,6 +618,12 @@ export function EditorPage() {
         store={storeRef.current}
         assetStore={assetStoreRef.current}
         onToast={showToast}
+      />
+
+      {/* ── Keyboard Shortcuts Help Modal ── */}
+      <ShortcutsModal
+        isOpen={isShortcutsOpen}
+        onClose={() => setIsShortcutsOpen(false)}
       />
     </div>
   );
