@@ -114,3 +114,4 @@ export function ShortcutsModal({ isOpen, onClose }) {
     </div>
   );
 }
+
