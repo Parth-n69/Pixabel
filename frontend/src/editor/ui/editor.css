@@ -227,6 +227,51 @@
   pointer-events: none;
 }
 
+/* ── Restore Session Banner ──────────────────────────────── */
+.editor-restore-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 50;
+  animation: restoreSlideDown 0.25s ease-out;
+  flex-shrink: 0;
+}
+
+@keyframes restoreSlideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.editor-restore-banner__content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.editor-restore-banner__content svg {
+  color: var(--gold);
+  flex-shrink: 0;
+}
+
+.editor-restore-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .editor-compare-pill {
   display: inline-flex;
   align-items: center;

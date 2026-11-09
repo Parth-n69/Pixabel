@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { createEditorStore } from '../document/store.js';
 import { createDefaultDocument, DEFAULT_ADJUSTMENTS } from '../document/schema.js';
 import { serializeDocument, loadDocument } from '../document/serialize.js';
+import { computeOutputDimensions } from '../engine/exportEngine.js';
 
 describe('Pixabel Document Store', () => {
   /** @type {ReturnType<typeof createEditorStore>} */
@@ -783,6 +784,72 @@ describe('Pixabel Document Store', () => {
       expect(store.getState().canUndo()).toBe(true);
       store.getState().setIsComparingSession(false);
       expect(store.getState().isComparingSession).toBe(false);
+    });
+  });
+
+  // ── Part 7: Export and persistence ──────────────────────────────────
+
+  describe('Part 7: Export and persistence', () => {
+    describe('computeOutputDimensions', () => {
+      it('calculates 1x scale without capping', () => {
+        const dim = computeOutputDimensions({ width: 1024, height: 768 }, 1);
+        expect(dim.width).toBe(1024);
+        expect(dim.height).toBe(768);
+        expect(dim.effectiveScale).toBe(1);
+        expect(dim.wasCapped).toBe(false);
+      });
+
+      it('calculates 2x scale without capping when below 4096px', () => {
+        const dim = computeOutputDimensions({ width: 1024, height: 1024 }, 2);
+        expect(dim.width).toBe(2048);
+        expect(dim.height).toBe(2048);
+        expect(dim.effectiveScale).toBe(2);
+        expect(dim.wasCapped).toBe(false);
+      });
+
+      it('caps 2x scale at 4096px on the longest side when exceeding limit', () => {
+        const dim = computeOutputDimensions({ width: 3000, height: 2000 }, 2);
+        // 3000 * 2 = 6000 > 4096, so capped to 4096 on width
+        expect(dim.width).toBe(4096);
+        expect(dim.height).toBe(Math.round(2000 * (4096 / 3000)));
+        expect(dim.wasCapped).toBe(true);
+        expect(Math.max(dim.width, dim.height)).toBeLessThanOrEqual(4096);
+      });
+    });
+
+    describe('setDocumentSize caps at 4096px', () => {
+      it('clamps oversized document dimensions to 4096px max', () => {
+        dispatch({ type: 'setDocumentSize', width: 6000, height: 3000 });
+        expect(getDoc().width).toBe(4096);
+        expect(getDoc().height).toBe(Math.round(3000 * (4096 / 6000)));
+        expect(Math.max(getDoc().width, getDoc().height)).toBeLessThanOrEqual(4096);
+      });
+    });
+
+    describe('restoreSessionDocument', () => {
+      it('restores entire document and resets undo/redo history', () => {
+        addLayer('Temp 1');
+        addLayer('Temp 2');
+        expect(store.getState().canUndo()).toBe(true);
+
+        const savedDoc = createDefaultDocument({
+          id: 'restored-doc',
+          width: 800,
+          height: 600,
+          layers: [
+            { id: 'restored-layer-1', name: 'Restored Layer', visible: true, locked: false, opacity: 1, blendMode: 'normal' },
+          ],
+        });
+
+        store.getState().restoreSessionDocument(savedDoc);
+
+        expect(getDoc().id).toBe('restored-doc');
+        expect(getDoc().width).toBe(800);
+        expect(getDoc().layers).toHaveLength(1);
+        expect(getDoc().layers[0].name).toBe('Restored Layer');
+        expect(store.getState().canUndo()).toBe(false);
+        expect(store.getState().canRedo()).toBe(false);
+      });
     });
   });
 });

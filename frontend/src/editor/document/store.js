@@ -41,6 +41,19 @@ export function createEditorStore(initialDoc) {
       set({ initialSessionDoc: serializeDocument(get().document) });
     },
 
+    /** Restore a saved session document, resetting undo/redo stacks. */
+    restoreSessionDocument(doc) {
+      set({
+        document: doc,
+        initialSessionDoc: serializeDocument(doc),
+        selectedLayerId: doc.layers[0]?.id ?? null,
+        comparingLayerId: null,
+        isComparingSession: false,
+        _undoStack: [],
+        _redoStack: [],
+      });
+    },
+
     // ── History state (not part of the document) ──
     _undoStack: [],
     _redoStack: [],

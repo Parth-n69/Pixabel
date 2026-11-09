@@ -5,6 +5,52 @@
 import { createLayerId } from '../document/schema.js';
 
 /**
+ * Check if an image exceeds maxDimension (4096px).
+ * If so, downscale it onto an offscreen canvas and return the resized blob and dimensions.
+ */
+export async function downscaleBlobIfNeeded(fileOrBlob, maxDimension = 4096) {
+  const url = URL.createObjectURL(fileOrBlob);
+  try {
+    const { width, height } = await getImageSize(url);
+    const longest = Math.max(width, height);
+    if (longest <= maxDimension) {
+      return { blob: fileOrBlob, width, height, wasDownscaled: false, originalWidth: width, originalHeight: height };
+    }
+
+    const scale = maxDimension / longest;
+    const targetWidth = Math.round(width * scale);
+    const targetHeight = Math.round(height * scale);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d');
+
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = url;
+    });
+
+    ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+    const mimeType = fileOrBlob.type && fileOrBlob.type.startsWith('image/') ? fileOrBlob.type : 'image/png';
+    const downscaledBlob = await new Promise((resolve) => canvas.toBlob(resolve, mimeType));
+
+    return {
+      blob: downscaledBlob || fileOrBlob,
+      width: targetWidth,
+      height: targetHeight,
+      wasDownscaled: true,
+      originalWidth: width,
+      originalHeight: height,
+    };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
  * Load an image File/Blob into the editor.
  * Returns { assetId, width, height } on success.
  *
@@ -14,13 +60,29 @@ import { createLayerId } from '../document/schema.js';
  * @param {object} [opts]
  * @param {string} [opts.name]  Layer name (defaults to file name or 'Image')
  * @param {boolean} [opts.resizeDoc] If true, resize document to match image
+ * @param {(info: { originalWidth: number, originalHeight: number, width: number, height: number, message: string }) => void} [opts.onDownscale]
  */
 export async function loadImageIntoEditor(fileOrBlob, assetStore, store, opts = {}) {
-  const assetId = `img-${createLayerId()}`;
-  const url = assetStore.add(assetId, fileOrBlob);
+  // Downscale working copy if longest side > 4096px
+  const { blob, width, height, wasDownscaled, originalWidth, originalHeight } =
+    await downscaleBlobIfNeeded(fileOrBlob, 4096);
 
-  // Get natural dimensions
-  const { width, height } = await getImageSize(url);
+  if (wasDownscaled) {
+    const msg = `Image downscaled from ${originalWidth}×${originalHeight} to ${width}×${height}px (maximum 4096px).`;
+    if (typeof opts.onDownscale === 'function') {
+      opts.onDownscale({ originalWidth, originalHeight, width, height, message: msg });
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('pixabel:toast', {
+          detail: { message: msg, type: 'info' },
+        })
+      );
+    }
+  }
+
+  const assetId = `img-${createLayerId()}`;
+  const url = assetStore.add(assetId, blob);
 
   const name = opts.name || (fileOrBlob instanceof File ? fileOrBlob.name.replace(/\.[^/.]+$/, '') : 'Image');
 
@@ -157,7 +219,7 @@ export async function flattenAllLayers(store, assetStore) {
   }
 }
 
-function drawLayerToCtx(ctx, layer, assetStore) {
+export function drawLayerToCtx(ctx, layer, assetStore) {
   const url = assetStore.getUrl(layer.assetId);
   if (!url) return Promise.resolve();
   return new Promise((resolve) => {

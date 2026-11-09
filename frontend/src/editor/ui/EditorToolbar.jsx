@@ -11,7 +11,7 @@ const PRESETS = [
 /**
  * EditorToolbar — Undo / Redo, Add Image, Document Presets, and Studio link.
  */
-export function EditorToolbar({ store, assetStore, viewportRef }) {
+export function EditorToolbar({ store, assetStore, viewportRef, onOpenExport }) {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [isComparingSession, setIsComparingSession] = useState(false);
@@ -133,7 +133,8 @@ export function EditorToolbar({ store, assetStore, viewportRef }) {
 
       <div className="editor-toolbar__group">
         <button
-          className="editor-btn editor-btn--gold"
+          type="button"
+          className="editor-btn"
           onClick={() => fileInputRef.current?.click()}
           title="Add image layer from your device"
         >
@@ -142,6 +143,23 @@ export function EditorToolbar({ store, assetStore, viewportRef }) {
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
           <span>Add Image</span>
+        </button>
+      </div>
+
+      <div className="editor-toolbar__separator" />
+
+      <div className="editor-toolbar__group">
+        <button
+          type="button"
+          className="editor-btn editor-btn--gold"
+          onClick={onOpenExport}
+          title="Export image or save to gallery"
+          aria-label="Export image"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+          </svg>
+          <span>Export</span>
         </button>
       </div>
 
