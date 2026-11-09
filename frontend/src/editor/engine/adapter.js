@@ -260,6 +260,9 @@ export class FabricAdapter {
       }
       if (!obj) continue;
 
+      const isComparingSession = Boolean(this._store.getState().isComparingSession);
+      const isInteractive = !isComparingSession && !layer.locked;
+
       obj.set({
         originX: 'left',
         originY: 'top',
@@ -272,8 +275,8 @@ export class FabricAdapter {
         flipY: layer.flipY,
         opacity: layer.opacity,
         visible: layer.visible,
-        selectable: !layer.locked,
-        evented: !layer.locked,
+        selectable: isInteractive,
+        evented: isInteractive,
         globalCompositeOperation:
           layer.blendMode === 'normal' ? 'source-over' : layer.blendMode,
       });

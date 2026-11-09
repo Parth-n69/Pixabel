@@ -61,6 +61,11 @@ export async function loadImageIntoEditor(fileOrBlob, assetStore, store, opts = 
     store.getState().setSelectedLayerId(newLayer.id);
   }
 
+  // If this is the first layer loaded into an empty session, snapshot session start baseline
+  if (isFirstLayer && (!store.getState().initialSessionDoc || store.getState().initialSessionDoc.layers.length === 0)) {
+    store.getState().snapshotInitialSessionDoc();
+  }
+
   return { assetId, width, height };
 }
 
