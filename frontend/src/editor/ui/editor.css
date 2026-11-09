@@ -17,35 +17,169 @@
   overflow: hidden;
 }
 
-/* ── Right sidebar (properties + layers stacked) ─────────── */
-.editor-sidebar {
+/* ── Canvas area container ────────────────────────────────── */
+.editor-canvas-area {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
   display: flex;
-  flex-direction: column;
-  width: 260px;
-  min-width: 200px;
-  max-width: 320px;
-  flex-shrink: 0;
-  border-left: 1px solid var(--border);
   overflow: hidden;
 }
 
-/* Remove individual border-left from panels inside the sidebar */
-.editor-sidebar > .props-panel,
-.editor-sidebar > .layers-panel {
+/* ── Right sidebar ───────────────────────────────────────── */
+.editor-sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 290px;
+  min-width: 260px;
+  max-width: 360px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+  height: 100%;
+}
+
+.editor-sidebar-header {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.editor-sidebar-tabs {
+  display: flex;
+  gap: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+}
+
+.editor-sidebar-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--t-fast);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.editor-sidebar-tab:hover:not(.editor-sidebar-tab--active) {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.editor-sidebar-tab--active {
+  background: var(--surface);
+  color: var(--gold);
+  border-color: var(--border-strong);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.editor-sidebar-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--gold-soft);
+  border: 1px solid var(--border);
+}
+
+.editor-sidebar-tab--active .editor-sidebar-tab-badge {
+  background: var(--gold);
+  color: var(--on-gold);
+  border-color: var(--gold);
+}
+
+.editor-sidebar-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.editor-sidebar-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+.editor-sidebar-pane--full {
+  flex: 1 1 0;
+  height: 100%;
+}
+
+.editor-sidebar-pane--split {
+  flex: 1 1 0;
+  min-height: 180px;
+}
+
+.editor-sidebar-divider {
+  height: 1px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/* Ensure inner panels fill the pane and scroll independently */
+.editor-sidebar-pane > .props-panel,
+.editor-sidebar-pane > .layers-panel {
   border-left: none;
   width: 100%;
   max-width: none;
-}
-
-/* Let layers panel take remaining space */
-.editor-sidebar > .layers-panel {
+  min-width: 0;
   flex: 1 1 0;
   min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-/* Properties panel stays compact */
-.editor-sidebar > .props-panel {
-  flex: 0 0 auto;
+/* Custom scrollbars for side panels */
+.props-panel::-webkit-scrollbar,
+.layers-panel__list::-webkit-scrollbar,
+.editor-sidebar-pane::-webkit-scrollbar {
+  width: 6px;
+}
+
+.props-panel::-webkit-scrollbar-track,
+.layers-panel__list::-webkit-scrollbar-track,
+.editor-sidebar-pane::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.props-panel::-webkit-scrollbar-thumb,
+.layers-panel__list::-webkit-scrollbar-thumb,
+.editor-sidebar-pane::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+
+.props-panel::-webkit-scrollbar-thumb:hover,
+.layers-panel__list::-webkit-scrollbar-thumb:hover,
+.editor-sidebar-pane::-webkit-scrollbar-thumb:hover {
+  background: var(--gold-soft);
 }
 
 /* ── Toolbar ─────────────────────────────────────────────── */
@@ -392,34 +526,61 @@
   height: 100% !important;
 }
 
-/* ── Zoom bar ────────────────────────────────────────────── */
+/* ── Floating Zoom bar ───────────────────────────────────── */
 .editor-zoom-bar {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 4px;
-  padding: 6px 16px;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  min-height: 40px;
-  flex-shrink: 0;
-  z-index: 10;
+  padding: 4px 8px;
+  background: rgba(18, 18, 22, 0.9);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 1px rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px);
+  z-index: 25;
+  user-select: none;
+}
+
+.editor-zoom-bar .editor-btn {
+  height: 28px;
+  font-size: 11px;
+  padding: 0 10px;
+  border-radius: 14px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.editor-zoom-bar .editor-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.editor-zoom-bar .editor-btn--icon {
+  width: 28px;
+  padding: 0;
+  font-size: 14px;
 }
 
 .editor-zoom-bar__percent {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 52px;
-  height: 28px;
-  padding: 0 8px;
-  font-size: 12px;
+  min-width: 50px;
+  height: 26px;
+  padding: 0 6px;
+  font-size: 11px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  color: var(--gold);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  border-radius: 13px;
   user-select: none;
 }
 
@@ -446,21 +607,13 @@
   .editor-sidebar {
     width: 100%;
     max-width: none;
-    flex-direction: row;
     border-left: none;
     border-top: 1px solid var(--border);
-    max-height: 280px;
+    max-height: 320px;
   }
 
-  .editor-sidebar > .props-panel,
-  .editor-sidebar > .layers-panel {
-    flex: 1 1 0;
-    max-height: none;
-    border-top: none;
-  }
-
-  .editor-sidebar > .props-panel {
-    border-right: 1px solid var(--border);
+  .editor-sidebar-pane--split {
+    min-height: 140px;
   }
 
   .editor-toolbar {
@@ -479,7 +632,8 @@
   }
 
   .editor-zoom-bar {
-    padding: 4px 8px;
+    bottom: 12px;
+    padding: 3px 6px;
     gap: 2px;
   }
 }

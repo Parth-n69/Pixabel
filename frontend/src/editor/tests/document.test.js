@@ -292,6 +292,37 @@ describe('Pixabel Document Store', () => {
       expect(getDoc().layers[0].x).toBe(100);
       expect(getDoc().layers[0].y).toBe(200);
     });
+
+    it('centers and scales layer to fit canvas', () => {
+      const id = addLayer('CenterFit');
+      const doc = getDoc();
+      const rawW = 500;
+      const rawH = 500;
+      const scale = Math.min(doc.width / rawW, doc.height / rawH);
+      const layerW = rawW * scale;
+      const layerH = rawH * scale;
+      const x = Math.round((doc.width - layerW) / 2);
+      const y = Math.round((doc.height - layerH) / 2);
+
+      dispatch({
+        type: 'transformLayer',
+        layerId: id,
+        scaleX: scale,
+        scaleY: scale,
+        x,
+        y,
+      });
+
+      const l = getDoc().layers[0];
+      expect(l.scaleX).toBeCloseTo(scale);
+      expect(l.scaleY).toBeCloseTo(scale);
+      expect(l.x).toBe(x);
+      expect(l.y).toBe(y);
+
+      undo();
+      expect(getDoc().layers[0].x).toBe(0);
+      expect(getDoc().layers[0].scaleX).toBe(1);
+    });
   });
 
   // ── flipLayer ────────────────────────────────────────────────────────
