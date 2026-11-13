@@ -1,6 +1,8 @@
 /** @module Serialization helpers for the Pixabel document model */
 
-import { createDefaultDocument, createDefaultLayer, DEFAULT_ADJUSTMENTS } from './schema.js';
+import { migrate, SCHEMA_VERSION } from './schema.js';
+
+export { migrate, SCHEMA_VERSION };
 
 /**
  * Produce a plain, JSON-safe snapshot of the document.
@@ -11,24 +13,13 @@ export function serializeDocument(doc) {
 }
 
 /**
- * Load a document from parsed JSON, filling in any missing defaults.
+ * Load a document from parsed JSON, migrating older versions to schemaVersion: 2
+ * and filling in any missing defaults.
  * Always returns a fully-valid document shape.
  */
 export function loadDocument(json) {
   if (!json || typeof json !== 'object') {
     throw new Error('Invalid document JSON');
   }
-  return createDefaultDocument({
-    id: json.id,
-    width: json.width,
-    height: json.height,
-    background: json.background ?? '#ffffff',
-    layers: (json.layers ?? []).map((l) =>
-      createDefaultLayer({
-        ...l,
-        adjustments: { ...DEFAULT_ADJUSTMENTS, ...(l.adjustments ?? {}) },
-      }),
-    ),
-  });
+  return migrate(json);
 }
-

@@ -1,4 +1,3 @@
-
 import { serializeDocument, loadDocument } from './serialize.js';
 
 const DB_NAME = 'PixabelEditorDB';
@@ -59,9 +58,13 @@ export async function saveDraft(doc, assetStore) {
     const db = await getDB();
     const serializedDoc = serializeDocument(doc);
 
-    // Collect blobs for every asset referenced in layers
+    // Collect blobs for every asset referenced in layers (including masks)
     const assets = [];
-    const neededIds = new Set(doc.layers.map((l) => l.assetId).filter(Boolean));
+    const neededIds = new Set();
+    for (const l of doc.layers) {
+      if (l.assetId) neededIds.add(l.assetId);
+      if (l.mask?.assetId) neededIds.add(l.mask.assetId);
+    }
 
     for (const assetId of neededIds) {
       const blob = assetStore.getBlob(assetId);

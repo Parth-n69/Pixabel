@@ -1,7 +1,7 @@
 /** @module Action reducers for the Pixabel document model */
 
 import { current } from 'immer';
-import { createDefaultLayer, createLayerId, DEFAULT_ADJUSTMENTS } from './schema.js';
+import { createDefaultLayer, createLayerId, DEFAULT_ADJUSTMENTS, migrate } from './schema.js';
 
 /**
  * Apply an action to an immer draft of the document.
@@ -67,6 +67,42 @@ export function applyAction(draft, action) {
     case 'setBlendMode': {
       const layer = requireLayer(draft, action.layerId);
       layer.blendMode = action.blendMode;
+      break;
+    }
+
+    case 'setLayerAsset': {
+      const layer = requireLayer(draft, action.layerId);
+      layer.assetId = action.assetId;
+      break;
+    }
+
+    case 'setLayerMask': {
+      const layer = requireLayer(draft, action.layerId);
+      layer.mask = action.mask
+        ? {
+            assetId: action.mask.assetId ?? null,
+            enabled: action.mask.enabled ?? true,
+            inverted: Boolean(action.mask.inverted),
+          }
+        : null;
+      break;
+    }
+
+    case 'setClipToBelow': {
+      const layer = requireLayer(draft, action.layerId);
+      layer.clipToBelow = Boolean(action.clipToBelow);
+      break;
+    }
+
+    case 'updateLayer': {
+      const layer = requireLayer(draft, action.layerId);
+      const props = action.properties || action.payload || {};
+      Object.assign(layer, props);
+      if (layer.type === 'shape' && (props.shape || props.shapeKind)) {
+        const kind = props.shape || props.shapeKind;
+        layer.shape = kind;
+        layer.shapeKind = kind;
+      }
       break;
     }
 
@@ -153,11 +189,13 @@ export function applyAction(draft, action) {
 
     case 'loadDocument': {
       if (action.document) {
-        draft.id = action.document.id;
-        draft.width = action.document.width;
-        draft.height = action.document.height;
-        draft.background = action.document.background;
-        draft.layers = action.document.layers.map((l) => ({ ...l }));
+        const doc = migrate(action.document);
+        draft.id = doc.id;
+        draft.schemaVersion = doc.schemaVersion;
+        draft.width = doc.width;
+        draft.height = doc.height;
+        draft.background = doc.background;
+        draft.layers = doc.layers.map((l) => ({ ...l }));
       }
       break;
     }
@@ -182,4 +220,3 @@ function requireLayer(draft, layerId) {
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
-
